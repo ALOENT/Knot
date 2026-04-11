@@ -1,24 +1,30 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
+import { env } from './config/env';
+import { logger } from './utils/logger';
 import authRoutes from './routes/auth.routes';
+import healthRoutes from './routes/health.routes';
 import { errorHandler } from './middlewares/error.middleware';
 import { prisma } from './utils/db';
-
-dotenv.config();
 
 const app = express();
 
 // Security Middlewares
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
 }));
+
+// Request Logging Middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -35,22 +41,23 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/health', healthRoutes);
 
 // Global Error Handling Middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = env.PORT || 5000;
 
 const startServer = async () => {
   try {
     await prisma.$connect();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
     
     app.listen(PORT, () => {
-      console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      logger.info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Failed to connect to database', error);
+    logger.error('Failed to connect to database format', error);
     process.exit(1);
   }
 };
