@@ -5,22 +5,13 @@ import { env } from '../config/env';
 import { prisma } from '../utils/db';
 import { logger } from '../utils/logger';
 
-type AuthenticatedSocket = Socket & {
-  data: {
-    user: {
-      id: string;
-      role: string;
-    }
-  }
-};
-
 const getRoomId = (userId1: string, userId2: string) => {
   return [userId1, userId2].sort().join('-');
 };
 
 export const initChatSocket = (io: Server) => {
   // Authentication Middleware
-  io.use(async (socket: AuthenticatedSocket, next: (err?: Error) => void) => {
+  io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
       const parsedCookies = cookie.parse(socket.request.headers.cookie || '');
       const token = parsedCookies.jwt;
@@ -36,7 +27,7 @@ export const initChatSocket = (io: Server) => {
         return next(new Error('Authentication error: User not found'));
       }
 
-      socket.data.user = {
+      socket.user = {
         id: user.id,
         role: user.role,
       };
@@ -47,9 +38,10 @@ export const initChatSocket = (io: Server) => {
     }
   });
 
-  io.on('connection', async (socket: AuthenticatedSocket) => {
-    const userId = socket.data.user.id;
-    const userRole = socket.data.user.role;
+  io.on('connection', async (socket: Socket) => {
+    // If we're here, auth middleware succeeded so socket.user exists
+    const userId = socket.user!.id;
+    const userRole = socket.user!.role;
 
     logger.info(`Socket connected: ${socket.id} (User: ${userId}, Role: ${userRole})`);
 
