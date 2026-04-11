@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import http from 'http';
+import { Server } from 'socket.io';
 
 import { env } from './config/env';
 import { logger } from './utils/logger';
@@ -10,8 +12,20 @@ import authRoutes from './routes/auth.routes';
 import healthRoutes from './routes/health.routes';
 import { errorHandler } from './middlewares/error.middleware';
 import { prisma } from './utils/db';
+import { initChatSocket } from './sockets/chat.socket';
 
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true,
+  }
+});
+
+// Initialize Chat Socket Logic
+initChatSocket(io);
+
 
 // Security Middlewares
 app.use(helmet());
@@ -53,7 +67,7 @@ const startServer = async () => {
     await prisma.$connect();
     logger.info('Database connected successfully');
     
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       logger.info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
     });
   } catch (error) {
