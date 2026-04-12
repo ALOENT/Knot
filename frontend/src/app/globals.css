@@ -3,33 +3,133 @@
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
 }
 
 @layer base {
   :root {
-    --background: #000000;
-    --foreground: #ffffff;
-    --glass-bg: rgba(15, 15, 20, 0.4);
-    --glass-border: rgba(255, 255, 255, 0.08);
+    --background: #0F0F12;
+    --foreground: #E8E8ED;
+    --accent: #6366f1;
+    --surface: rgba(18, 18, 24, 0.6);
+    --glass-bg: rgba(18, 18, 24, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-highlight: rgba(255, 255, 255, 0.04);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.3);
+    color: #fff;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.14);
   }
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-}
-
+/* ─── Glassmorphism ─── */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid var(--glass-border);
+  box-shadow:
+    0 0 0 1px var(--glass-highlight) inset,
+    0 4px 32px rgba(0, 0, 0, 0.4);
 }
 
+/* ─── Form Inputs ─── */
 .input-field {
-  @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all;
+  @apply w-full rounded-xl px-4 py-3.5 text-sm text-white
+         placeholder:text-gray-500
+         focus:outline-none focus:ring-2
+         transition-all duration-200;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.input-field:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.12),
+    0 0 20px rgba(99, 102, 241, 0.06);
+}
+
+/* ─── Primary Button ─── */
 .btn-primary {
-  @apply w-full bg-white text-black font-semibold rounded-xl px-4 py-3 hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply w-full font-semibold rounded-xl px-4 py-3.5 text-sm
+         transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow:
+    0 0 20px rgba(99, 102, 241, 0.35),
+    0 8px 32px rgba(99, 102, 241, 0.18);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ─── Ambient Background Orbs ─── */
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(100px);
+  pointer-events: none;
+  will-change: transform;
 }

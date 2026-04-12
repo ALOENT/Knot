@@ -1,14 +1,19 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { SocketProvider } from '@/providers/SocketProvider';
 import CursorGlow from '@/components/CursorGlow';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
-  title: 'Knot - Next-Gen Messaging',
-  description: 'Premium secure direct messaging platform.',
+  title: 'Knot — Next-Gen Messaging',
+  description:
+    'Premium secure direct messaging platform with real-time communication.',
+  keywords: ['messaging', 'chat', 'secure', 'real-time'],
 };
 
 export default function RootLayout({
@@ -17,12 +22,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-black text-white antialiased min-h-screen selection:bg-indigo-500/30 overflow-x-hidden`}>
-        <SocketProvider>
-          <CursorGlow />
-          {children}
-        </SocketProvider>
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body
+        className="bg-[#0F0F12] text-[#E8E8ED] antialiased min-h-screen overflow-x-hidden"
+        style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
+      >
+        <CursorGlow />
+        {children}
       </body>
     </html>
   );
