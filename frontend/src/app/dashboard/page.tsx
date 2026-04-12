@@ -1,31 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
-import { useSocket } from '@/providers/SocketProvider';
+import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
-import type { Message } from '@/components/ChatWindow';
 
 export default function DashboardPage() {
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
+  const { currentUser, activeChat, messages, setActiveChat, sendMessage } = useChat();
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
-  const [activeChat, setActiveChat] = useState<ChatUser | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [showChatList, setShowChatList] = useState(true);
-  const { socket, joinChat } = useSocket();
-  const messagesAbortRef = useRef<AbortController | null>(null);
-
-  // ── Fetch current user ──
-  useEffect(() => {
-    api.get('/auth/me')
-      .then((res) => setCurrentUser(res.data.user || res.data))
-      .catch(() => {
-        // Will be handled by api interceptor redirect
-      });
-  }, []);
 
   // ── Fetch chat users ──
   useEffect(() => {
@@ -34,67 +20,19 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  // ── Listen for new messages ──
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNewMessage = (msg: Message) => {
-      if (activeChat && (msg.senderId === activeChat.id || msg.receiverId === activeChat.id)) {
-        setMessages((prev) => [...prev, msg]);
-      }
-    };
-
-    socket.on('new_message', handleNewMessage);
-    return () => {
-      socket.off('new_message', handleNewMessage);
-    };
-  }, [socket, activeChat]);
-
   // ── Select a chat ──
   const handleSelectChat = useCallback(
     (user: ChatUser) => {
       setActiveChat(user);
-      setMessages([]);
       setShowChatList(false);
-      joinChat(user.id);
-
-      // Cancel any previous pending request
-      if (messagesAbortRef.current) {
-        messagesAbortRef.current.abort();
-      }
-
-      const abortController = new AbortController();
-      messagesAbortRef.current = abortController;
-
-      api.get(`/messages/${user.id}`, { signal: abortController.signal })
-        .then((res) => {
-          if (abortController.signal.aborted) return;
-          setMessages(res.data.messages || []);
-        })
-        .catch((err) => {
-          if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
-          console.error('[Dashboard] Failed to fetch messages:', err);
-          alert('Failed to load messages. Please try again.');
-        });
     },
-    [joinChat],
-  );
-
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      if (!socket || !activeChat) return;
-      socket.emit('send_message', {
-        receiverId: activeChat.id,
-        content,
-      });
-    },
-    [socket, activeChat],
+    [setActiveChat],
   );
 
   const handleBack = useCallback(() => {
     setShowChatList(true);
     setActiveChat(null);
-  }, []);
+  }, [setActiveChat]);
 
   return (
     <div className="flex h-full">
@@ -128,7 +66,7 @@ export default function DashboardPage() {
               activeUser={activeChat}
               messages={messages}
               currentUserId={currentUser?.id ?? ''}
-              onSendMessage={handleSendMessage}
+              onSendMessage={sendMessage}
               onBack={handleBack}
             />
           </motion.div>
