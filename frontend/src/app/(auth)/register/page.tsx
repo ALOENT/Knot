@@ -17,7 +17,7 @@ const stagger = {
 
 const fadeUp = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.4, 0.25, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.4, 0.25, 1] as const } },
 };
 
 export default function RegisterPage() {
@@ -189,7 +189,7 @@ export default function RegisterPage() {
                     id="register-submit"
                     type="submit"
                     disabled={loading}
-                    className="btn-primary gap-2"
+                    className="btn-primary gap-2 group"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -73,6 +73,8 @@ export default function DashboardPage() {
         })
         .catch((err) => {
           if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
+          console.error('[Dashboard] Failed to fetch messages:', err);
+          alert('Failed to load messages. Please try again.');
         });
     },
     [joinChat],

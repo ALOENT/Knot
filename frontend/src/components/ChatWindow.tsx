@@ -115,13 +115,13 @@ export default function ChatWindow({
               border: '1px solid rgba(255, 255, 255, 0.04)',
             }}
           >
-            <Send className="h-6 w-6 text-[#333]" />
+            <Send className="h-6 w-6 text-[#888]" />
           </div>
           <div>
-            <h3 className="text-sm font-medium text-[#666]">
+            <h3 className="text-sm font-medium text-[#aaa]">
               Select a conversation
             </h3>
-            <p className="text-xs text-[#444] mt-1">
+            <p className="text-xs text-[#888] mt-1">
               Choose a chat to start messaging
             </p>
           </div>
@@ -210,14 +210,14 @@ export default function ChatWindow({
 
         {/* Actions */}
         <div className="flex items-center gap-0.5">
-          <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
-            <Phone className="h-3.5 w-3.5" />
+          <motion.button aria-label="Start phone call" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
+            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
-          <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
-            <Video className="h-3.5 w-3.5" />
+          <motion.button aria-label="Start video call" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
+            <Video className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
-          <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
-            <MoreVertical className="h-3.5 w-3.5" />
+          <motion.button aria-label="More options" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
+            <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
         </div>
       </div>
