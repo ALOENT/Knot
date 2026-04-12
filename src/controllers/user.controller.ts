@@ -89,7 +89,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         lastSeen: true,
       },
       orderBy: {
-        username: 'asc'
+        id: 'asc'
       },
       take,
       skip: cursor ? undefined : skip

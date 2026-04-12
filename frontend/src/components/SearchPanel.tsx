@@ -30,6 +30,10 @@ export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanel
   const handleSearch = useCallback(
     debounce(async (searchQuery: string) => {
       if (!searchQuery.trim()) {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         if (isMountedRef.current) {
           setResults([]);
           setHasSearched(false);

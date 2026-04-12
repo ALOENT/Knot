@@ -64,8 +64,10 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
   };
 
   const getStatusColor = () => {
-    if (!user) return 'bg-gray-500';
-    return user.isOnline ? 'bg-green-500' : 'bg-gray-500';
+    if (!user) return { bgClass: 'bg-gray-500', shadowColor: 'rgba(156, 163, 175, 0.5)' };
+    return user.isOnline 
+      ? { bgClass: 'bg-green-500', shadowColor: 'rgba(34, 197, 94, 0.5)' }
+      : { bgClass: 'bg-gray-500', shadowColor: 'rgba(156, 163, 175, 0.5)' };
   };
 
   return (
@@ -122,7 +124,10 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
               <div className="mt-2 text-white">
                 <h2 id="profile-modal-title" className="text-xl font-bold">{user.username}</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className={`w-2 h-2 rounded-full ${getStatusColor()} shadow-[0_0_8px_rgba(34,197,94,0.5)]`} />
+                  <div 
+                    className={`w-2 h-2 rounded-full ${getStatusColor().bgClass}`}
+                    style={{ boxShadow: `0 0 8px ${getStatusColor().shadowColor}` }}
+                  />
                   <span className="text-xs text-gray-400 font-medium">{getStatusLabel()}</span>
                 </div>
               </div>

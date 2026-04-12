@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
@@ -29,6 +29,11 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, currentUser }: SidebarProps) {
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [currentUser?.profilePic, currentUser?.id]);
+
   return (
     <>
       {/* ── Desktop Sidebar — Slim icon rail ── */}
