@@ -12,10 +12,15 @@
     --background: #0F0F12;
     --foreground: #E8E8ED;
     --accent: #6366f1;
+    --accent-secondary: #a855f7;
     --surface: rgba(18, 18, 24, 0.6);
     --glass-bg: rgba(18, 18, 24, 0.45);
+    --glass-bg-heavy: rgba(12, 12, 16, 0.65);
     --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-border-active: rgba(255, 255, 255, 0.12);
     --glass-highlight: rgba(255, 255, 255, 0.04);
+    --sidebar-w: 72px;
+    --chat-list-w: 340px;
   }
 
   *,
@@ -40,10 +45,10 @@
     color: #fff;
   }
 
-  /* Scrollbar */
+  /* ─── Scrollbar ─── */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
 
   ::-webkit-scrollbar-track {
@@ -51,27 +56,57 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.12);
   }
 }
 
-/* ─── Glassmorphism ─── */
+/* ═══════════════════════════════════════════
+   GLASSMORPHISM SYSTEM
+   ═══════════════════════════════════════════ */
+
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
   border: 1px solid var(--glass-border);
   box-shadow:
     0 0 0 1px var(--glass-highlight) inset,
     0 4px 32px rgba(0, 0, 0, 0.4);
 }
 
-/* ─── Form Inputs ─── */
+.glass-panel-heavy {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 0 0 1px var(--glass-highlight) inset,
+    0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.glass-sidebar {
+  background: rgba(10, 10, 14, 0.75);
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border-right: 1px solid var(--glass-border);
+}
+
+.glass-header {
+  background: rgba(15, 15, 18, 0.6);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* ═══════════════════════════════════════════
+   FORM INPUTS
+   ═══════════════════════════════════════════ */
+
 .input-field {
   @apply w-full rounded-xl px-4 py-3.5 text-sm text-white
          placeholder:text-gray-500
@@ -89,11 +124,29 @@
     0 0 20px rgba(99, 102, 241, 0.06);
 }
 
-/* ─── Primary Button ─── */
+/* Chat message input — wider radius, subtle */
+.chat-input {
+  @apply w-full rounded-2xl px-5 py-3 text-sm text-white
+         placeholder:text-gray-500
+         focus:outline-none focus:ring-0
+         transition-all duration-150;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chat-input:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════ */
+
 .btn-primary {
   @apply w-full font-semibold rounded-xl px-4 py-3.5 text-sm
          transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
   color: #fff;
   border: none;
   position: relative;
@@ -105,7 +158,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 60%);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -116,8 +169,8 @@
 
 .btn-primary:hover:not(:disabled) {
   box-shadow:
-    0 0 20px rgba(99, 102, 241, 0.35),
-    0 8px 32px rgba(99, 102, 241, 0.18);
+    0 0 24px rgba(99, 102, 241, 0.4),
+    0 0 48px rgba(168, 85, 247, 0.15);
   transform: translateY(-1px);
 }
 
@@ -125,11 +178,134 @@
   transform: translateY(0);
 }
 
-/* ─── Ambient Background Orbs ─── */
+/* Icon button for sidebar and actions */
+.btn-icon {
+  @apply flex items-center justify-center rounded-xl
+         transition-all duration-200 text-gray-400;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.btn-icon.active {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+/* ═══════════════════════════════════════════
+   ONLINE / PRESENCE INDICATORS
+   ═══════════════════════════════════════════ */
+
+.status-dot {
+  @apply rounded-full;
+  width: 10px;
+  height: 10px;
+}
+
+.status-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  animation: pulse-online 2s ease-in-out infinite;
+}
+
+.status-dot.offline {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes pulse-online {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.7);
+  }
+}
+
+/* Typing indicator dots */
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typing-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a855f7;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   ACTIVE CHAT ITEM GLOW
+   ═══════════════════════════════════════════ */
+
+.chat-item {
+  @apply relative rounded-xl transition-all duration-200 cursor-pointer;
+  padding: 12px 14px;
+}
+
+.chat-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chat-item.active {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.chat-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #6366f1, #a855f7);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+}
+
+/* ═══════════════════════════════════════════
+   AMBIENT ORBS
+   ═══════════════════════════════════════════ */
+
 .orb {
   position: absolute;
   border-radius: 9999px;
   filter: blur(100px);
   pointer-events: none;
   will-change: transform;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — Bottom Tab Bar for Mobile
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-w: 0px;
+    --chat-list-w: 100%;
+  }
 }
