@@ -13,6 +13,7 @@ export interface AuthUser {
   bio?: string;
   email?: string;
   createdAt?: string;
+  isOnline?: boolean;
 }
 
 interface ChatContextType {
