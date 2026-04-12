@@ -31,6 +31,7 @@ interface ChatListProps {
 
 export default function ChatList({ users, activeChatId, onSelectChat }: ChatListProps) {
   const [search, setSearch] = useState('');
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const { onlineUsers, typingUsers } = useSocket();
 
   const filtered = users.filter((u) =>
@@ -48,6 +49,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
             whileTap={{ scale: 0.9 }}
             className="btn-icon h-9 w-9"
             title="New Chat"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); console.log('New chat clicked') }}
           >
             <Plus className="h-4 w-4" />
           </motion.button>
@@ -75,24 +77,34 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
             const isTyping = typingUsers.get(user.id) ?? false;
 
             return (
-              <motion.div
-                key={user.id}
-                layout
-                layoutId={`chat-item-${user.id}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                onClick={() => onSelectChat(user)}
-                className={`chat-item flex items-center gap-3 ${isActive ? 'active' : ''}`}
-              >
+                <motion.div
+                  key={user.id}
+                  layout
+                  layoutId={`chat-item-${user.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  role="button"
+                  tabIndex={0}
+                  aria-selected={isActive}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectChat(user);
+                    }
+                  }}
+                  onClick={() => onSelectChat(user)}
+                  className={`chat-item flex items-center gap-3 ${isActive ? 'active' : ''}`}
+                >
                 {/* Avatar with online indicator */}
                 <div className="relative shrink-0">
                   <div className="h-11 w-11 rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/8">
-                    {user.profilePic ? (
+                    {user.profilePic && !imageErrors[user.id] ? (
                       <img
                         src={user.profilePic}
                         alt={user.username}
+                        onError={() => setImageErrors((prev) => ({ ...prev, [user.id]: true }))}
                         className="h-full w-full rounded-full object-cover"
                       />
                     ) : (

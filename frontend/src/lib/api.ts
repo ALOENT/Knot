@@ -55,7 +55,14 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Explicitly reject if the original request was itself a refresh call
+      // to avoid deadlocking the interceptor queue.
+      if (originalRequest.url === '/auth/refresh') {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
+        originalRequest._retry = true;
         // Queue subsequent 401s while a refresh is in flight
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

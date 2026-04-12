@@ -1,7 +1,8 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { api } from '@/lib/api';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
@@ -21,6 +22,17 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignored
+    } finally {
+      router.push('/login');
+    }
+  };
 
   return (
     <>
@@ -71,6 +83,7 @@ export default function Sidebar() {
           <button
             className="btn-icon hover:text-red-400"
             title="Sign Out"
+            onClick={handleLogout}
           >
             <LogOut className="h-5 w-5" />
           </button>
@@ -105,6 +118,13 @@ export default function Sidebar() {
               </Link>
             );
           })}
+          
+          <button onClick={handleLogout} className="relative flex flex-col items-center gap-1 p-2 rounded-xl transition-colors text-red-500/80 hover:text-red-500">
+            <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1">
+              <LogOut className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Log out</span>
+            </motion.div>
+          </button>
         </div>
       </nav>
     </>

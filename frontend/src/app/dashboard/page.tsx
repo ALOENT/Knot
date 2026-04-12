@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showChatList, setShowChatList] = useState(true);
   const { socket, joinChat } = useSocket();
+  const messagesAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch current user ──
   useEffect(() => {
@@ -26,19 +27,29 @@ export default function DashboardPage() {
       });
   }, []);
 
+  // ── Fetch chat users ──
+  useEffect(() => {
+    api.get('/users')
+      .then((res) => setChatUsers(res.data.users || res.data || []))
+      .catch(() => {});
+  }, []);
+
   // ── Listen for new messages ──
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
+      // Only append if the message belongs to the current active chat
+      if (activeChat && (msg.senderId === activeChat.id || msg.receiverId === activeChat.id)) {
+        setMessages((prev) => [...prev, msg]);
+      }
     };
 
     socket.on('new_message', handleNewMessage);
     return () => {
       socket.off('new_message', handleNewMessage);
     };
-  }, [socket]);
+  }, [socket, activeChat]);
 
   // ── Select a chat ──
   const handleSelectChat = useCallback(
@@ -48,10 +59,23 @@ export default function DashboardPage() {
       setShowChatList(false); // Mobile: hide list, show chat
       joinChat(user.id);
 
+      // Cancel any previous pending request
+      if (messagesAbortRef.current) {
+        messagesAbortRef.current.abort();
+      }
+      
+      const abortController = new AbortController();
+      messagesAbortRef.current = abortController;
+
       // Fetch message history
-      api.get(`/messages/${user.id}`)
-        .then((res) => setMessages(res.data.messages || []))
-        .catch(() => {}); // Silently fail — real-time will catch up
+      api.get(`/messages/${user.id}`, { signal: abortController.signal })
+        .then((res) => {
+          if (abortController.signal.aborted) return;
+          setMessages(res.data.messages || []);
+        })
+        .catch((err) => {
+          if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
+        }); // Silently fail — real-time will catch up
     },
     [joinChat],
   );

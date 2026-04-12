@@ -56,6 +56,18 @@ export default function ChatWindow({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Cleanup typing timeout when unmounting or active user changes
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (activeUser) {
+        emitStopTyping(activeUser.id);
+      }
+    };
+  }, [activeUser, emitStopTyping]);
+
   // Handle typing indicator emission
   const handleInputChange = useCallback(
     (value: string) => {

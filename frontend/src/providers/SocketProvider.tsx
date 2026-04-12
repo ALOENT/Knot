@@ -103,6 +103,17 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         next.set(data.userId, data.isOnline);
         return next;
       });
+      // If user goes offline, make sure to clear them from typing list
+      if (!data.isOnline) {
+        setTypingUsers((prev) => {
+          if (prev.has(data.userId)) {
+            const next = new Map(prev);
+            next.delete(data.userId);
+            return next;
+          }
+          return prev;
+        });
+      }
     });
 
     // ── Typing indicators ──
