@@ -8,10 +8,10 @@ export default function DashboardLayout({
 }) {
   return (
     <SocketProvider>
-      <div className="flex h-screen overflow-hidden bg-[#0F0F12]">
+      <div className="flex h-screen overflow-hidden" style={{ background: '#030303' }}>
         <Sidebar />
 
-        {/* Main content area offset by sidebar width on desktop */}
+        {/* Main content offset by sidebar width on desktop */}
         <main
           className="flex-1 h-screen overflow-hidden"
           style={{ marginLeft: 'var(--sidebar-w)' }}

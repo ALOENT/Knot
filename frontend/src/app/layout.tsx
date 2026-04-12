@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Knot — Next-Gen Messaging',
+  title: 'Knot — Secure Messaging',
   description:
     'Premium secure direct messaging platform with real-time communication.',
   keywords: ['messaging', 'chat', 'secure', 'real-time'],
@@ -24,11 +24,24 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
       <body
-        className="bg-[#0F0F12] text-[#E8E8ED] antialiased min-h-screen overflow-x-hidden"
-        style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
+        className="antialiased min-h-screen overflow-x-hidden"
+        style={{
+          fontFamily: 'var(--font-inter), system-ui, -apple-system, sans-serif',
+          backgroundColor: '#030303',
+          color: '#e5e5e5',
+          letterSpacing: '-0.01em',
+        }}
       >
+        {/* Star-grid background pattern — always present */}
+        <div className="star-grid" />
+
+        {/* Cursor glow — self-disables on non-auth pages */}
         <CursorGlow />
-        {children}
+
+        {/* Page content */}
+        <div className="relative z-[1]">
+          {children}
+        </div>
       </body>
     </html>
   );

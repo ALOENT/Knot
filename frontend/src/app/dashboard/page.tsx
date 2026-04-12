@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
@@ -39,7 +39,6 @@ export default function DashboardPage() {
     if (!socket) return;
 
     const handleNewMessage = (msg: Message) => {
-      // Only append if the message belongs to the current active chat
       if (activeChat && (msg.senderId === activeChat.id || msg.receiverId === activeChat.id)) {
         setMessages((prev) => [...prev, msg]);
       }
@@ -55,19 +54,18 @@ export default function DashboardPage() {
   const handleSelectChat = useCallback(
     (user: ChatUser) => {
       setActiveChat(user);
-      setMessages([]); // Reset messages — fetch from API in real app
-      setShowChatList(false); // Mobile: hide list, show chat
+      setMessages([]);
+      setShowChatList(false);
       joinChat(user.id);
 
       // Cancel any previous pending request
       if (messagesAbortRef.current) {
         messagesAbortRef.current.abort();
       }
-      
+
       const abortController = new AbortController();
       messagesAbortRef.current = abortController;
 
-      // Fetch message history
       api.get(`/messages/${user.id}`, { signal: abortController.signal })
         .then((res) => {
           if (abortController.signal.aborted) return;
@@ -75,7 +73,7 @@ export default function DashboardPage() {
         })
         .catch((err) => {
           if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
-        }); // Silently fail — real-time will catch up
+        });
     },
     [joinChat],
   );
@@ -99,29 +97,29 @@ export default function DashboardPage() {
   return (
     <div className="flex h-full">
       {/* ── Chat List pane ── */}
-      <motion.div
-        className={`
-          h-full border-r border-white/[0.04] shrink-0
-          ${showChatList ? 'block' : 'hidden md:block'}
-        `}
-        style={{ width: 'var(--chat-list-w)' }}
+      <div
+        className={`h-full shrink-0 ${showChatList ? 'block' : 'hidden md:block'}`}
+        style={{
+          width: 'var(--chat-list-w)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.04)',
+        }}
       >
         <ChatList
           users={chatUsers}
           activeChatId={activeChat?.id ?? null}
           onSelectChat={handleSelectChat}
         />
-      </motion.div>
+      </div>
 
       {/* ── Chat Window pane ── */}
       <div className={`flex-1 h-full ${!showChatList ? 'block' : 'hidden md:block'}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeChat?.id ?? 'empty'}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="h-full"
           >
             <ChatWindow
