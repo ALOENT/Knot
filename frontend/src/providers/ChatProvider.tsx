@@ -8,6 +8,8 @@ import type { Message } from '@/components/ChatWindow';
 
 interface ChatContextType {
   currentUser: { id: string; username: string } | null;
+  authError: any;
+  isLoadingAuth: boolean;
   activeChat: ChatUser | null;
   messages: Message[];
   setActiveChat: (user: ChatUser | null) => void;
@@ -16,6 +18,8 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType>({
   currentUser: null,
+  authError: null,
+  isLoadingAuth: true,
   activeChat: null,
   messages: [],
   setActiveChat: () => {},
@@ -31,11 +35,31 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesAbortRef = useRef<AbortController | null>(null);
 
+  // Unmount cleanup for aborts
+  useEffect(() => {
+    return () => {
+      if (messagesAbortRef.current) {
+        messagesAbortRef.current.abort();
+      }
+    };
+  }, []);
+
   // ── 0. Fetch Current User ──
+  const [authError, setAuthError] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
   useEffect(() => {
     api.get('/auth/me')
-      .then((res) => setCurrentUser(res.data.user || res.data))
-      .catch(() => {});
+      .then((res) => {
+        setCurrentUser(res.data.user || res.data);
+        setIsLoadingAuth(false);
+      })
+      .catch((err) => {
+        console.error('[ChatProvider] Auth error:', err);
+        setAuthError(err);
+        setCurrentUser(null);
+        setIsLoadingAuth(false);
+      });
   }, []);
 
   // ── 1. Listen for new incoming messages ──
@@ -52,8 +76,26 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           activeChat &&
           (msg.senderId === activeChat.id || msg.receiverId === activeChat.id)
         ) {
-          // Prevent duplicates if we already appended optimistically
-          if (prev.some((m) => m.id === msg.id)) return prev;
+          const existingIndex = prev.findIndex((m) => {
+            // Perfect ID match
+            if (m.id === msg.id) return true;
+            // Loose dedupe for optimistic messages
+            if (m.id.startsWith('temp-') && m.senderId === msg.senderId) {
+              const clientIdMatch = (m as any).clientId && (m as any).clientId === (msg as any).clientId;
+              if (clientIdMatch) return true;
+
+              const isSameContent = m.content?.trim() === msg.content?.trim();
+              const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime());
+              return isSameContent && timeDiff < 5000; // 5-second window
+            }
+            return false;
+          });
+
+          if (existingIndex !== -1) {
+            const next = [...prev];
+            next[existingIndex] = msg; // Replace optimistic message with real message
+            return next;
+          }
           return [...prev, msg];
         }
         return prev;
@@ -133,7 +175,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <ChatContext.Provider value={{ currentUser, activeChat, messages, setActiveChat, sendMessage }}>
+    <ChatContext.Provider value={{ currentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage }}>
       {children}
     </ChatContext.Provider>
   );
