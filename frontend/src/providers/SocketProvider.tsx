@@ -24,10 +24,11 @@ export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   const connect = useCallback(() => {
-    if (socketRef.current?.connected) return;
+    if (socketRef.current) return;
 
     const socketInstance = io(
       process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000',
@@ -58,6 +59,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     socketRef.current = socketInstance;
+    setSocket(socketInstance);
   }, []);
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   }, [connect]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected }}>
       {children}
     </SocketContext.Provider>
   );
