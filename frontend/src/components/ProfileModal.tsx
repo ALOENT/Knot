@@ -1,3 +1,4 @@
+import { useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Calendar, LogOut, X } from 'lucide-react';
 import type { AuthUser } from '@/providers/ChatProvider';
@@ -10,13 +11,67 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ isOpen, onClose, user, onLogout }: ProfileModalProps) {
-  if (!user) return null;
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      closeButtonRef.current?.focus();
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, handleKeyDown]);
+
+  useEffect(() => {
+    if (!isOpen || !modalRef.current) return;
+
+    const modal = modalRef.current;
+    const focusableElements = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    modal.addEventListener('keydown', handleTabKey);
+    return () => modal.removeEventListener('keydown', handleTabKey);
+  }, [isOpen]);
+
+  const getStatusLabel = () => {
+    if (!user) return 'Unknown';
+    return user.isOnline ? 'Online' : 'Offline';
+  };
+
+  const getStatusColor = () => {
+    if (!user) return 'bg-gray-500';
+    return user.isOnline ? 'bg-green-500' : 'bg-gray-500';
+  };
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen && user && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -25,8 +80,11 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
           />
 
-          {/* Modal */}
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -37,19 +95,18 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
             }}
           >
-            {/* Header / Banner */}
             <div className="h-24 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 relative">
-              <button 
+              <button
+                ref={closeButtonRef}
                 onClick={onClose}
+                aria-label="Close profile modal"
                 className="absolute top-3 right-3 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-gray-300 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Content */}
             <div className="px-6 pb-6 relative pt-12">
-              {/* Profile Picture */}
               <div className="absolute -top-10 left-6">
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 p-[2px] shadow-xl">
                   <div className="w-full h-full bg-black rounded-2xl flex items-center justify-center overflow-hidden">
@@ -62,12 +119,11 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
                 </div>
               </div>
 
-              {/* Info */}
               <div className="mt-2 text-white">
-                <h2 className="text-xl font-bold">{user.username}</h2>
+                <h2 id="profile-modal-title" className="text-xl font-bold">{user.username}</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                  <span className="text-xs text-green-400 font-medium">Online</span>
+                  <div className={`w-2 h-2 rounded-full ${getStatusColor()} shadow-[0_0_8px_rgba(34,197,94,0.5)]`} />
+                  <span className="text-xs text-gray-400 font-medium">{getStatusLabel()}</span>
                 </div>
               </div>
               
@@ -88,7 +144,6 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
                 )}
               </div>
 
-              {/* Actions */}
               <div className="mt-8">
                 <button
                   onClick={onLogout}

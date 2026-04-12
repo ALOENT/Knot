@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, UserPlus, MessageSquare } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -15,35 +15,68 @@ export interface SearchResult {
 
 interface SearchPanelProps {
   onMessageUser: (user: SearchResult) => void;
+  onAddContact?: (user: SearchResult) => void;
 }
 
-export default function SearchPanel({ onMessageUser }: SearchPanelProps) {
+export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanelProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
   const handleSearch = useCallback(
     debounce(async (searchQuery: string) => {
       if (!searchQuery.trim()) {
-        setResults([]);
-        setHasSearched(false);
+        if (isMountedRef.current) {
+          setResults([]);
+          setHasSearched(false);
+        }
         return;
       }
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
       try {
-        setIsLoading(true);
-        const res = await api.get(`/users/search?query=${encodeURIComponent(searchQuery)}`);
-        setResults(res.data.users || []);
-      } catch (error) {
+        if (isMountedRef.current) {
+          setIsLoading(true);
+        }
+        const res = await api.get(`/users/search?query=${encodeURIComponent(searchQuery)}`, {
+          signal: abortControllerRef.current.signal,
+        });
+        if (isMountedRef.current) {
+          setResults(res.data.users || []);
+          setHasSearched(true);
+        }
+      } catch (error: any) {
+        if (error.name === 'CanceledError' || error?.response?.status === 499) {
+          return;
+        }
         console.error('Search failed', error);
       } finally {
-        setIsLoading(false);
-        setHasSearched(true);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     }, 400),
     []
   );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      handleSearch.cancel();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [handleSearch]);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -53,7 +86,6 @@ export default function SearchPanel({ onMessageUser }: SearchPanelProps) {
 
   return (
     <div className="flex flex-col h-full w-full bg-black/40 backdrop-blur-md">
-      {/* Search Header */}
       <div className="p-6 border-b border-white/[0.04]">
         <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-4">
           Discover
@@ -73,7 +105,6 @@ export default function SearchPanel({ onMessageUser }: SearchPanelProps) {
         </div>
       </div>
 
-      {/* Results Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
         {isLoading && (
           <div className="flex justify-center py-8">
@@ -130,8 +161,10 @@ export default function SearchPanel({ onMessageUser }: SearchPanelProps) {
                 <MessageSquare className="w-4 h-4" />
               </button>
               <button
-                className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                title="Add Contact"
+                onClick={() => onAddContact?.(user)}
+                disabled={!onAddContact}
+                className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={onAddContact ? 'Add Contact' : 'Add Contact (Coming Soon)'}
               >
                 <UserPlus className="w-4 h-4" />
               </button>

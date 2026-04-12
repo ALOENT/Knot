@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/db';
 
+const isAdminUser = (user: any): boolean => {
+  return user?.role === 'ADMIN';
+};
+
 /**
  * @desc    Search users by username or email
  * @route   GET /api/users/search?query=...
@@ -8,26 +12,30 @@ import { prisma } from '../utils/db';
  */
 export const searchUsers = async (req: Request, res: Response) => {
   try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     const { query } = req.query;
 
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ success: false, message: 'Please provide a valid search query' });
     }
 
-    // A simplified OR search for username or email
+    const includeEmail = isAdminUser(req.user);
+
     const users = await prisma.user.findMany({
       where: {
         OR: [
           { username: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } }
+          ...(includeEmail ? [{ email: { contains: query, mode: 'insensitive' } }] : [])
         ],
-        // Exclude the currently logged in user from results
-        id: { not: req.user?.id }
+        id: { not: req.user.id }
       },
       select: {
         id: true,
         username: true,
-        email: true,
+        email: includeEmail,
         profilePic: true,
         isOnline: true,
         lastSeen: true,
@@ -49,24 +57,58 @@ export const searchUsers = async (req: Request, res: Response) => {
  */
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const includeEmail = isAdminUser(req.user);
+
+    const take = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
+    const skip = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const cursor = req.query.cursor as string | undefined;
+
+    const whereClause: any = {
+      id: { not: req.user.id }
+    };
+
+    if (cursor) {
+      whereClause.id = {
+        ...whereClause.id,
+        gt: cursor
+      };
+    }
+
     const users = await prisma.user.findMany({
-      where: {
-        id: { not: req.user?.id }
-      },
+      where: whereClause,
       select: {
         id: true,
         username: true,
-        email: true,
+        email: includeEmail,
         profilePic: true,
         isOnline: true,
         lastSeen: true,
       },
       orderBy: {
         username: 'asc'
-      }
+      },
+      take,
+      skip: cursor ? undefined : skip
     });
 
-    res.status(200).json({ success: true, users });
+    const hasMore = users.length === take;
+    const nextCursor = hasMore && users.length > 0 ? users[users.length - 1].id : undefined;
+
+    res.status(200).json({ 
+      success: true, 
+      users,
+      pagination: {
+        limit: take,
+        offset: skip,
+        cursor: cursor || null,
+        hasMore,
+        nextCursor
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error while fetching contacts' });
   }

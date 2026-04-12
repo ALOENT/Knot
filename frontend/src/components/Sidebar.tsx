@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
@@ -27,6 +28,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, currentUser }: SidebarProps) {
+  const [imageError, setImageError] = useState(false);
   return (
     <>
       {/* ── Desktop Sidebar — Slim icon rail ── */}
@@ -39,10 +41,15 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, current
           <button onClick={onOpenProfile} className="focus:outline-none" title="User Profile">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105">
               <div className="w-full h-full bg-black rounded-[10px] flex items-center justify-center overflow-hidden">
-                {currentUser?.profilePic ? (
-                  <img src={currentUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                {currentUser?.profilePic && !imageError ? (
+                  <img 
+                    src={currentUser.profilePic} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
                 ) : (
-                  <span className="text-white font-bold text-sm">{currentUser?.username?.charAt(0)?.toUpperCase() || 'K'}</span>
+                  <span className="text-white font-bold text-sm">{currentUser?.username?.charAt(0)?.toUpperCase() || '?'}</span>
                 )}
               </div>
             </div>

@@ -153,11 +153,11 @@ export default function DashboardPage() {
               transition={{ duration: 0.2 }}
               className="h-full w-full"
             >
-              {activeChat ? (
+              {activeChat && currentUser ? (
                 <ChatWindow
                   activeUser={activeChat}
                   messages={messages}
-                  currentUserId={currentUser?.id ?? ''}
+                  currentUserId={currentUser.id}
                   onSendMessage={sendMessage}
                   onBack={handleBack}
                 />
