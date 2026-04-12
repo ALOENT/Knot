@@ -6,8 +6,17 @@ import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
 import type { Message } from '@/components/ChatWindow';
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  profilePic?: string;
+  bio?: string;
+  email?: string;
+  createdAt?: string;
+}
+
 interface ChatContextType {
-  currentUser: { id: string; username: string } | null;
+  currentUser: AuthUser | null;
   authError: any;
   isLoadingAuth: boolean;
   activeChat: ChatUser | null;
@@ -30,7 +39,7 @@ export const useChat = () => useContext(ChatContext);
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const { socket, joinChat } = useSocket();
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeChat, setActiveChatState] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesAbortRef = useRef<AbortController | null>(null);

@@ -4,73 +4,176 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
+import Sidebar, { TabType } from '@/components/Sidebar';
+import SearchPanel, { SearchResult } from '@/components/SearchPanel';
+import ProfileModal from '@/components/ProfileModal';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 import type { ChatUser } from '@/components/ChatList';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { currentUser, activeChat, messages, setActiveChat, sendMessage } = useChat();
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
-  const [showChatList, setShowChatList] = useState(true);
+  
+  // SPA State
+  const [activeTab, setActiveTab] = useState<TabType>('messages');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  // Responsive view state
+  const [showRightPanel, setShowRightPanel] = useState(false); // For mobile
 
-  // ── Fetch chat users ──
+  // ── Fetch chat users (acting as global Contacts fallback for now) ──
   useEffect(() => {
     api.get('/users')
-      .then((res) => setChatUsers(res.data.users || res.data || []))
-      .catch(() => {});
+      .then((res) => setChatUsers(res.data.users || []))
+      .catch((err) => console.error('Failed to load contacts', err));
   }, []);
 
-  // ── Select a chat ──
-  const handleSelectChat = useCallback(
-    (user: ChatUser) => {
+  // ── Handlers ──
+  const handleSelectChat = useCallback((user: ChatUser) => {
       setActiveChat(user);
-      setShowChatList(false);
-    },
-    [setActiveChat],
-  );
+      setShowRightPanel(true); // Open chat window on mobile
+  }, [setActiveChat]);
+
+  const handleMessageSearchedUser = useCallback((user: SearchResult) => {
+    // Switch back to messages tab and make them active
+    setActiveTab('messages');
+    setActiveChat({
+      id: user.id,
+      username: user.username,
+      profilePic: user.profilePic,
+      isOnline: user.isOnline,
+    });
+    setShowRightPanel(true);
+  }, [setActiveChat]);
 
   const handleBack = useCallback(() => {
-    setShowChatList(true);
+    setShowRightPanel(false);
     setActiveChat(null);
   }, [setActiveChat]);
 
-  return (
-    <div className="flex h-full">
-      {/* ── Chat List pane ── */}
-      <div
-        className={`h-full shrink-0 ${showChatList ? 'block' : 'hidden md:block'}`}
-        style={{
-          width: 'var(--chat-list-w)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.04)',
-        }}
-      >
-        <ChatList
-          users={chatUsers}
-          activeChatId={activeChat?.id ?? null}
-          onSelectChat={handleSelectChat}
-        />
-      </div>
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignored
+    } finally {
+      router.push('/login');
+    }
+  };
 
-      {/* ── Chat Window pane ── */}
-      <div className={`flex-1 h-full ${!showChatList ? 'block' : 'hidden md:block'}`}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeChat?.id ?? 'empty'}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="h-full"
-          >
-            <ChatWindow
-              activeUser={activeChat}
-              messages={messages}
-              currentUserId={currentUser?.id ?? ''}
-              onSendMessage={sendMessage}
-              onBack={handleBack}
-            />
-          </motion.div>
-        </AnimatePresence>
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    if (showRightPanel && activeChat === null) {
+      setShowRightPanel(false);
+    }
+  };
+
+  // ── Panel Renderers ──
+  const renderLeftPanel = () => {
+    switch (activeTab) {
+      case 'messages':
+      case 'contacts': // For now, Contacts just shows ChatList too
+        return (
+          <ChatList
+            users={chatUsers}
+            activeChatId={activeChat?.id ?? null}
+            onSelectChat={handleSelectChat}
+          />
+        );
+      case 'search':
+        return <SearchPanel onMessageUser={handleMessageSearchedUser} />;
+      case 'groups':
+        return (
+           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-black/40 backdrop-blur-md border-r border-white/5">
+             <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">🚧</span>
+             </div>
+             <h2 className="text-xl font-bold text-gray-200 mb-2">Groups Coming Soon</h2>
+             <p className="text-sm text-gray-500">Group chats and channels are currently under development.</p>
+           </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex h-full w-full">
+      {/* ── Sidebar ── */}
+      <Sidebar 
+        activeTab={activeTab} 
+        onChangeTab={handleTabChange} 
+        onOpenProfile={() => setIsProfileOpen(true)}
+        currentUser={currentUser}
+      />
+      
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        user={currentUser} 
+        onLogout={handleLogout}
+      />
+
+      {/* ── Main Layout Wrapper ── */}
+      <div className="flex flex-1 h-full md:pl-[var(--sidebar-w)]">
+        
+        {/* ── Left Content Pane (List/Search) ── */}
+        <div
+          className={`h-full shrink-0 relative bg-[#0a0a0c] z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-[var(--chat-list-w)]'}`}
+          style={{
+            borderRight: '1px solid rgba(255, 255, 255, 0.04)',
+          }}
+        >
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              {renderLeftPanel()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* ── Right Content Pane (Chat Window) ── */}
+        <div className={`flex-1 h-full bg-[#030303] relative ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeChat?.id ?? 'empty'}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              {activeChat ? (
+                <ChatWindow
+                  activeUser={activeChat}
+                  messages={messages}
+                  currentUserId={currentUser?.id ?? ''}
+                  onSendMessage={sendMessage}
+                  onBack={handleBack}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
+                  <div className="w-16 h-16 rounded-3xl bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center">
+                    <span className="text-3xl">👋</span>
+                  </div>
+                  <p className="text-lg font-medium text-gray-300">Select a conversation</p>
+                  <p className="text-sm">Or use Search to find new people</p>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
       </div>
     </div>
   );

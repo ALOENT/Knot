@@ -1,38 +1,32 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { api } from '@/lib/api';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
   Users,
   Search,
   Settings,
-  LogOut,
+  Hash
 } from 'lucide-react';
+import type { AuthUser } from '@/providers/ChatProvider';
 
-const navItems = [
-  { icon: MessageSquare, href: '/dashboard', label: 'Chats' },
-  { icon: Users, href: '/dashboard/contacts', label: 'Contacts' },
-  { icon: Search, href: '/dashboard/search', label: 'Search' },
-  { icon: Settings, href: '/dashboard/settings', label: 'Settings' },
+export type TabType = 'messages' | 'groups' | 'contacts' | 'search';
+
+const navItems: { icon: any; id: TabType; label: string }[] = [
+  { icon: MessageSquare, id: 'messages', label: 'Chats' },
+  { icon: Hash, id: 'groups', label: 'Groups' },
+  { icon: Users, id: 'contacts', label: 'Contacts' },
+  { icon: Search, id: 'search', label: 'Search' },
 ];
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const router = useRouter();
+interface SidebarProps {
+  activeTab: TabType;
+  onChangeTab: (tab: TabType) => void;
+  onOpenProfile: () => void;
+  currentUser?: AuthUser | null;
+}
 
-  const handleLogout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      // Ignored
-    } finally {
-      router.push('/login');
-    }
-  };
-
+export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, currentUser }: SidebarProps) {
   return (
     <>
       {/* ── Desktop Sidebar — Slim icon rail ── */}
@@ -42,92 +36,84 @@ export default function Sidebar() {
       >
         {/* Logo + Nav */}
         <div className="flex flex-col items-center gap-6">
-          <Link href="/dashboard">
-            <div className="h-8 w-8 rounded-lg bg-[#6366f1] flex items-center justify-center">
-              <span className="text-white font-bold text-sm">K</span>
+          <button onClick={onOpenProfile} className="focus:outline-none" title="User Profile">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105">
+              <div className="w-full h-full bg-black rounded-[10px] flex items-center justify-center overflow-hidden">
+                {currentUser?.profilePic ? (
+                  <img src={currentUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white font-bold text-sm">{currentUser?.username?.charAt(0)?.toUpperCase() || 'K'}</span>
+                )}
+              </div>
             </div>
-          </Link>
+          </button>
 
-          <nav className="flex flex-col gap-1">
+          <nav className="flex flex-col gap-1 w-full px-2">
             {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname?.startsWith(item.href));
-
+              const isActive = activeTab === item.id;
               return (
-                <Link key={item.href} href={item.href}>
-                  <motion.div
-                    className={`btn-icon relative ${isActive ? 'active' : ''}`}
-                    whileHover={{ scale: 1.08 }}
-                    whileTap={{ scale: 0.95 }}
-                    title={item.label}
-                  >
-                    <item.icon className="h-[18px] w-[18px] relative z-[1]" />
-                    {isActive && (
-                      <motion.div
-                        layoutId="sidebar-active"
-                        className="absolute inset-0 rounded-lg"
-                        style={{
-                          background: 'rgba(99, 102, 241, 0.08)',
-                          border: '1px solid rgba(99, 102, 241, 0.12)',
-                        }}
-                        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                      />
-                    )}
-                  </motion.div>
-                </Link>
+                <button
+                  key={item.id}
+                  onClick={() => onChangeTab(item.id)}
+                  className={`relative w-full aspect-square flex items-center justify-center rounded-xl transition-colors ${
+                    isActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                  title={item.label}
+                >
+                  <item.icon className="h-5 w-5 relative z-[1]" />
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute inset-0 rounded-xl bg-indigo-500/10 border border-indigo-500/20"
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    />
+                  )}
+                </button>
               );
             })}
           </nav>
         </div>
 
-        {/* Logout */}
+        {/* Settings / Open Profile (Alternative) */}
         <button
-          className="btn-icon hover:!text-red-400"
-          title="Sign Out"
-          onClick={handleLogout}
+          className="btn-icon hover:!text-indigo-400"
+          title="Settings"
+          onClick={onOpenProfile}
         >
-          <LogOut className="h-[18px] w-[18px]" />
+          <Settings className="h-5 w-5" />
         </button>
       </aside>
 
       {/* ── Mobile Bottom Tab Bar ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
         style={{
-          background: 'rgba(3, 3, 3, 0.92)',
+          background: 'rgba(10, 10, 12, 0.95)',
           backdropFilter: 'blur(20px)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
         }}
       >
-        <div className="flex items-center justify-around h-14 px-2">
+        <div className="flex items-center justify-around h-[68px] px-2 pb-safe">
           {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/dashboard' && pathname?.startsWith(item.href));
-
+            const isActive = activeTab === item.id;
             return (
-              <Link key={item.href} href={item.href} className="relative">
-                <motion.div
-                  className={`flex flex-col items-center gap-0.5 p-2 rounded-lg transition-colors ${
-                    isActive ? 'text-[#818cf8]' : 'text-[#555]'
-                  }`}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <item.icon className="h-[18px] w-[18px]" />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                </motion.div>
-              </Link>
+              <button
+                key={item.id}
+                onClick={() => onChangeTab(item.id)}
+                className="relative flex-1 flex flex-col items-center justify-center h-full"
+              >
+                <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-indigo-400' : 'text-gray-500'}`}>
+                   <item.icon className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                </div>
+                {isActive && (
+                  <motion.div
+                    layoutId="mobile-active-indicator"
+                    className="absolute top-0 w-8 h-[2px] bg-indigo-500 rounded-b-full shadow-[0_2px_8px_rgba(99,102,241,0.5)]"
+                  />
+                )}
+              </button>
             );
           })}
-
-          <button
-            onClick={handleLogout}
-            className="flex flex-col items-center gap-0.5 p-2 rounded-lg text-[#555] hover:text-red-400 transition-colors"
-          >
-            <LogOut className="h-[18px] w-[18px]" />
-            <span className="text-[10px] font-medium">Log out</span>
-          </button>
         </div>
       </nav>
     </>

@@ -10,6 +10,7 @@ import { env } from './config/env';
 import { logger } from './utils/logger';
 import authRoutes from './routes/auth.routes';
 import healthRoutes from './routes/health.routes';
+import userRoutes from './routes/user.routes';
 import { errorHandler } from './middlewares/error.middleware';
 import { prisma } from './utils/db';
 import { initChatSocket } from './sockets/chat.socket';
@@ -55,6 +56,7 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);
 
 // Global Error Handling Middleware

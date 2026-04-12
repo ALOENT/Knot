@@ -11,13 +11,7 @@ export default function DashboardLayout({
     <SocketProvider>
       <ChatProvider>
         <div className="flex h-screen overflow-hidden" style={{ background: '#030303' }}>
-          <Sidebar />
-
-          {/* Main content offset by sidebar width on desktop */}
-          <main
-            className="flex-1 h-screen overflow-hidden"
-            style={{ marginLeft: 'var(--sidebar-w)' }}
-          >
+          <main className="flex-1 h-screen overflow-hidden">
             {children}
           </main>
         </div>
