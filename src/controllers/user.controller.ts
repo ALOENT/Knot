@@ -98,10 +98,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const hasMore = users.length === take;
     const nextCursor = hasMore && users.length > 0 ? users[users.length - 1].id : undefined;
 
+    const total = await prisma.user.count({ where: whereClause });
+
     res.status(200).json({ 
       success: true, 
       users,
       pagination: {
+        total,
         limit: take,
         offset: skip,
         cursor: cursor || null,

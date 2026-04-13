@@ -67,7 +67,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
             className="chat-input text-xs"
-            style={{ paddingLeft: '36px' }}
+            style={{ paddingLeft: '40px' }}
           />
         </div>
       </div>

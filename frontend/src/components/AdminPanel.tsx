@@ -26,6 +26,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [activeSection, setActiveSection] = useState<'overview' | 'users' | 'reports'>('overview');
 
   // Escape to close
@@ -44,30 +45,28 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   // Fetch stats on mount
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Single fetch for total count using the revamped endpoint
     api.get('/users?limit=1')
       .then((res) => {
-        // Use pagination info or just count returned users as approximation
-        const pagination = res.data.pagination;
-        if (pagination?.hasMore) {
-          setTotalUsers(pagination.limit); // At least this many
-        } else {
-          setTotalUsers(res.data.users?.length || 0);
-        }
+        setTotalUsers(res.data.pagination?.total ?? res.data.users?.length ?? 0);
       })
       .catch(() => setTotalUsers(null));
-
-    // Also fetch full list for count
-    api.get('/users?limit=100')
-      .then((res) => {
-        setTotalUsers(res.data.users?.length || 0);
-      })
-      .catch(() => {});
   }, [isOpen]);
+
+  // Reset search state when query is cleared
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setHasSearched(false);
+    }
+  }, [searchQuery]);
 
   // Search users
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
+    setHasSearched(true);
     try {
       const res = await api.get(`/users/search?query=${encodeURIComponent(searchQuery)}`);
       setSearchResults(res.data.users || []);
@@ -204,7 +203,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                       placeholder="Search users by name or email..."
                       className="chat-input text-xs"
-                      style={{ paddingLeft: '36px' }}
+                      style={{ paddingLeft: '40px' }}
                     />
                   </div>
 
@@ -251,7 +250,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                     </div>
                   )}
 
-                  {!isSearching && searchResults.length === 0 && searchQuery && (
+                  {!isSearching && searchResults.length === 0 && hasSearched && searchQuery && (
                     <p className="text-center text-sm text-gray-500 py-6">No users found</p>
                   )}
 
