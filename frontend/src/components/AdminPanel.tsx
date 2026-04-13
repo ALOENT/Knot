@@ -54,26 +54,48 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       .catch(() => setTotalUsers(null));
   }, [isOpen]);
 
+  const searchAbortController = useRef<AbortController | null>(null);
+
   // Reset search state when query is cleared
   useEffect(() => {
     if (!searchQuery.trim()) {
+      if (searchAbortController.current) {
+        searchAbortController.current.abort();
+      }
       setSearchResults([]);
       setHasSearched(false);
+      setIsSearching(false);
     }
   }, [searchQuery]);
 
   // Search users
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    const queryToSearch = searchQuery.trim();
+    if (!queryToSearch) return;
+
+    if (searchAbortController.current) {
+      searchAbortController.current.abort();
+    }
+    const abortController = new AbortController();
+    searchAbortController.current = abortController;
+
     setIsSearching(true);
     setHasSearched(true);
     try {
-      const res = await api.get(`/users/search?query=${encodeURIComponent(searchQuery)}`);
+      const res = await api.get(`/users/search?query=${encodeURIComponent(queryToSearch)}`, {
+        signal: abortController.signal
+      });
       setSearchResults(res.data.users || []);
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+        // Ignored cancellation
+        return;
+      }
       setSearchResults([]);
     } finally {
-      setIsSearching(false);
+      if (!abortController.signal.aborted) {
+        setIsSearching(false);
+      }
     }
   };
 
