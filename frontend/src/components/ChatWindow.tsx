@@ -2,9 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, Phone, Video, MoreVertical, ArrowLeft } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import type { ChatUser } from '@/components/ChatList';
+import dynamic from 'next/dynamic';
+
+// Lazy-load emoji picker to avoid SSR issues and reduce initial bundle
+const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
 
 /* ════════════════════════════════════════════
    Types
@@ -44,8 +48,12 @@ export default function ChatWindow({
   onBack,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const { onlineUsers, typingUsers, emitStartTyping, emitStopTyping } = useSocket();
 
   const isOnline = activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false;
@@ -67,6 +75,22 @@ export default function ChatWindow({
       }
     };
   }, [activeUser, emitStopTyping]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showEmojiPicker]);
 
   // Handle typing indicator emission
   const handleInputChange = useCallback(
@@ -91,6 +115,8 @@ export default function ChatWindow({
 
     onSendMessage(trimmed);
     setInput('');
+    setSelectedFile(null);
+    setShowEmojiPicker(false);
 
     emitStopTyping(activeUser.id);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -101,6 +127,23 @@ export default function ChatWindow({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleEmojiSelect = (emojiData: any) => {
+    setInput((prev) => prev + emojiData.emoji);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+    // Reset input so selecting the same file works
+    e.target.value = '';
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
   };
 
   // ── Empty state ──
@@ -171,7 +214,7 @@ export default function ChatWindow({
               className={`absolute -bottom-0.5 -right-0.5 status-dot ${
                 isOnline ? 'online' : 'offline'
               }`}
-              style={{ width: 8, height: 8, border: '1.5px solid #030303' }}
+              style={{ width: 8, height: 8, border: '1.5px solid #0a0a0a' }}
             />
           </div>
 
@@ -208,14 +251,8 @@ export default function ChatWindow({
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Actions — Calls removed, only more options */}
         <div className="flex items-center gap-0.5">
-          <motion.button aria-label="Start phone call" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
-            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-          </motion.button>
-          <motion.button aria-label="Start video call" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
-            <Video className="h-3.5 w-3.5" aria-hidden="true" />
-          </motion.button>
           <motion.button aria-label="More options" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
             <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
@@ -277,19 +314,91 @@ export default function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* ── File preview bar ── */}
+      <AnimatePresence>
+        {selectedFile && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="shrink-0 px-4"
+          >
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1"
+              style={{
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.15)',
+              }}
+            >
+              <Paperclip className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+              <span className="text-xs text-indigo-300 truncate flex-1">
+                {selectedFile.name}
+              </span>
+              <span className="text-[10px] text-indigo-400/60 shrink-0">
+                {(selectedFile.size / 1024).toFixed(0)}KB
+              </span>
+              <button
+                onClick={clearFile}
+                className="p-0.5 rounded hover:bg-white/5 transition-colors"
+                aria-label="Remove file"
+              >
+                <X className="h-3 w-3 text-indigo-400" />
+              </button>
+            </div>
+            <p className="text-[10px] text-[#555] mb-2 px-1">
+              File upload backend coming soon — file name is shown as preview.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Message input bar ── */}
-      <div className="shrink-0 px-4 pb-4 pt-2">
+      <div className="shrink-0 px-4 pb-4 pt-2 relative">
+        {/* Emoji Picker Floating Panel */}
+        <AnimatePresence>
+          {showEmojiPicker && (
+            <motion.div
+              ref={emojiPickerRef}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-full right-4 mb-2 z-50"
+            >
+              <EmojiPicker
+                onEmojiClick={handleEmojiSelect}
+                width={320}
+                height={380}
+                skinTonesDisabled
+                searchPlaceHolder="Search emoji..."
+                previewConfig={{ showPreview: false }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div
-          className="flex items-end gap-2 rounded-xl px-3 py-2"
+          className="flex items-center gap-2 rounded-xl px-3 py-2"
           style={{
             background: 'rgba(255, 255, 255, 0.02)',
             border: '1px solid rgba(255, 255, 255, 0.04)',
           }}
         >
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.txt"
+          />
+
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
+            onClick={() => fileInputRef.current?.click()}
             className="btn-icon h-8 w-8 shrink-0"
+            aria-label="Attach file"
           >
             <Paperclip className="h-3.5 w-3.5" />
           </motion.button>
@@ -307,7 +416,9 @@ export default function ChatWindow({
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
-            className="btn-icon h-8 w-8 shrink-0"
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className={`btn-icon h-8 w-8 shrink-0 ${showEmojiPicker ? 'active' : ''}`}
+            aria-label="Emoji picker"
           >
             <Smile className="h-3.5 w-3.5" />
           </motion.button>

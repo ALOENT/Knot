@@ -58,15 +58,16 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
           </motion.button>
         </div>
 
-        {/* Search */}
+        {/* Search — icon properly offset, text starts after icon */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#444]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#444] pointer-events-none z-[2]" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="chat-input pl-9 text-xs"
+            className="chat-input text-xs"
+            style={{ paddingLeft: '36px' }}
           />
         </div>
       </div>
@@ -131,7 +132,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                     style={{
                       width: 8,
                       height: 8,
-                      border: '1.5px solid #030303',
+                      border: '1.5px solid #0a0a0a',
                     }}
                   />
                 </div>

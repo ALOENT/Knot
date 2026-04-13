@@ -27,7 +27,7 @@ export default function RootLayout({
         className="antialiased min-h-screen overflow-x-hidden"
         style={{
           fontFamily: 'var(--font-inter), system-ui, -apple-system, sans-serif',
-          backgroundColor: '#030303',
+          backgroundColor: '#0a0a0a',
           color: '#e5e5e5',
           letterSpacing: '-0.01em',
         }}

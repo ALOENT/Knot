@@ -95,8 +95,11 @@ export const initChatSocket = (io: Server) => {
 
         const roomId = getRoomId(userId, receiverId);
         
-        // Emit in real-time to the room (includes ghost admins)
-        io.to(roomId).emit('new_message', savedMessage);
+        // Broadcast to everyone EXCEPT the sender in the room
+        socket.broadcast.to(roomId).emit('new_message', savedMessage);
+        
+        // Send confirmation back to the sender only (replaces optimistic temp message)
+        socket.emit('message_confirmed', savedMessage);
       } catch (error) {
         logger.error(`Error sending message: ${error}`);
         socket.emit('error', { message: 'Failed to send message' });

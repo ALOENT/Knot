@@ -1,0 +1,176 @@
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../utils/db';
+import { logger } from '../utils/logger';
+
+/**
+ * @desc    Get paginated message history between authenticated user and a partner
+ * @route   GET /api/messages/:partnerId
+ * @access  Private
+ */
+export const getMessages = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const partnerId = req.params.partnerId as string;
+    if (!partnerId) {
+      return res.status(400).json({ success: false, message: 'Partner ID is required' });
+    }
+
+    // Pagination: default 50, max 100
+    const take = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const cursor = req.query.cursor as string | undefined;
+
+    const whereClause: any = {
+      isDeleted: false,
+      OR: [
+        { senderId: userId, receiverId: partnerId },
+        { senderId: partnerId, receiverId: userId },
+      ],
+    };
+
+    // Cursor-based pagination for older messages
+    if (cursor) {
+      whereClause.timestamp = { lt: new Date(cursor) };
+    }
+
+    const messages = await prisma.message.findMany({
+      where: whereClause,
+      orderBy: { timestamp: 'asc' },
+      take,
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            profilePic: true,
+          },
+        },
+      },
+    });
+
+    // Mark unread messages from the partner as seen
+    await prisma.message.updateMany({
+      where: {
+        senderId: partnerId,
+        receiverId: userId,
+        isSeen: false,
+      },
+      data: { isSeen: true },
+    });
+
+    res.status(200).json({
+      success: true,
+      messages,
+      pagination: {
+        count: messages.length,
+        hasMore: messages.length === take,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to fetch messages', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get list of conversations (unique partners with last message preview)
+ * @route   GET /api/messages/conversations
+ * @access  Private
+ */
+export const getConversations = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    // Find all unique partner IDs the user has exchanged messages with
+    const sentMessages = await prisma.message.findMany({
+      where: { senderId: userId, isDeleted: false },
+      select: { receiverId: true },
+      distinct: ['receiverId'],
+    });
+
+    const receivedMessages = await prisma.message.findMany({
+      where: { receiverId: userId, isDeleted: false },
+      select: { senderId: true },
+      distinct: ['senderId'],
+    });
+
+    // Merge into unique partner set
+    const partnerIds = new Set<string>();
+    sentMessages.forEach((m) => partnerIds.add(m.receiverId));
+    receivedMessages.forEach((m) => partnerIds.add(m.senderId));
+
+    // For each partner, get their profile and the latest message
+    const conversations = await Promise.all(
+      Array.from(partnerIds).map(async (partnerId) => {
+        const [partner, lastMessage, unreadCount] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: partnerId },
+            select: {
+              id: true,
+              username: true,
+              profilePic: true,
+              isOnline: true,
+              lastSeen: true,
+            },
+          }),
+          prisma.message.findFirst({
+            where: {
+              isDeleted: false,
+              OR: [
+                { senderId: userId, receiverId: partnerId },
+                { senderId: partnerId, receiverId: userId },
+              ],
+            },
+            orderBy: { timestamp: 'desc' },
+            select: {
+              content: true,
+              fileUrl: true,
+              timestamp: true,
+              senderId: true,
+            },
+          }),
+          prisma.message.count({
+            where: {
+              senderId: partnerId,
+              receiverId: userId,
+              isSeen: false,
+              isDeleted: false,
+            },
+          }),
+        ]);
+
+        if (!partner) return null;
+
+        return {
+          id: partner.id,
+          username: partner.username,
+          profilePic: partner.profilePic,
+          isOnline: partner.isOnline,
+          lastMessage: lastMessage?.content || (lastMessage?.fileUrl ? '📎 Attachment' : null),
+          lastMessageTime: lastMessage?.timestamp?.toISOString() || null,
+          unreadCount,
+        };
+      })
+    );
+
+    // Filter nulls and sort by last message time (newest first)
+    const filtered = conversations
+      .filter(Boolean)
+      .sort((a, b) => {
+        const timeA = a!.lastMessageTime ? new Date(a!.lastMessageTime).getTime() : 0;
+        const timeB = b!.lastMessageTime ? new Date(b!.lastMessageTime).getTime() : 0;
+        return timeB - timeA;
+      });
+
+    res.status(200).json({ success: true, conversations: filtered });
+  } catch (error) {
+    logger.error('Failed to fetch conversations', error);
+    next(error);
+  }
+};

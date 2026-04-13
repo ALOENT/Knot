@@ -7,7 +7,8 @@ import {
   Users,
   Search,
   Settings,
-  Hash
+  Hash,
+  Shield
 } from 'lucide-react';
 import type { AuthUser } from '@/providers/ChatProvider';
 
@@ -24,11 +25,13 @@ interface SidebarProps {
   activeTab: TabType;
   onChangeTab: (tab: TabType) => void;
   onOpenProfile: () => void;
+  onOpenAdmin?: () => void;
   currentUser?: AuthUser | null;
 }
 
-export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, currentUser }: SidebarProps) {
+export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenAdmin, currentUser }: SidebarProps) {
   const [imageError, setImageError] = useState(false);
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   useEffect(() => {
     setImageError(false);
@@ -43,22 +46,18 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, current
       >
         {/* Logo + Nav */}
         <div className="flex flex-col items-center gap-6">
-          <button onClick={onOpenProfile} className="focus:outline-none" title="User Profile">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105">
-              <div className="w-full h-full bg-black rounded-[10px] flex items-center justify-center overflow-hidden">
-                {currentUser?.profilePic && !imageError ? (
-                  <img 
-                    src={currentUser.profilePic} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <span className="text-white font-bold text-sm">{currentUser?.username?.charAt(0)?.toUpperCase() || '?'}</span>
-                )}
+          {/* Admin-only logo badge — opens Admin Control Panel */}
+          {isAdmin && onOpenAdmin && (
+            <button onClick={onOpenAdmin} className="focus:outline-none" title="Admin Control Panel">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105 neon-glow-active">
+                <div className="w-full h-full bg-[#0a0a0a] rounded-[10px] flex items-center justify-center overflow-hidden">
+                  <Shield className="w-4 h-4 text-indigo-400" />
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          )}
+
+          {/* Standard user — no logo at top, they use Settings below */}
 
           <nav className="flex flex-col gap-1 w-full px-2">
             {navItems.map((item) => {
@@ -86,7 +85,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, current
           </nav>
         </div>
 
-        {/* Settings / Open Profile (Alternative) */}
+        {/* Settings — opens Profile for all users */}
         <button
           className="btn-icon hover:!text-indigo-400"
           title="Settings"

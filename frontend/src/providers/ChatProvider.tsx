@@ -12,6 +12,7 @@ export interface AuthUser {
   profilePic?: string;
   bio?: string;
   email?: string;
+  role?: string;
   createdAt?: string;
   isOnline?: boolean;
 }
@@ -44,6 +45,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeChat, setActiveChatState] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesAbortRef = useRef<AbortController | null>(null);
+  const activeChatRef = useRef<ChatUser | null>(null);
+
+  // Keep ref in sync with state for use in socket callbacks
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
 
   // Unmount cleanup for aborts
   useEffect(() => {
@@ -61,7 +68,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     api.get('/auth/me')
       .then((res) => {
-        setCurrentUser(res.data.user || res.data);
+        // Backend returns { success: true, data: { id, email, username, role, ... } }
+        const userData = res.data.data || res.data.user || res.data;
+        setCurrentUser(userData);
         setIsLoadingAuth(false);
       })
       .catch((err) => {
@@ -72,51 +81,71 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       });
   }, []);
 
-  // ── 1. Listen for new incoming messages ──
+  // ── 1. Listen for incoming messages from OTHER users ──
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !currentUser) return;
 
     const handleNewMessage = (msg: Message) => {
-      setMessages((prev) => {
-        // If the message is already in the list (e.g., from optimistic update), we might want to replace it.
-        // For simple zero-latency, we'll append, but check for duplicate IDs just in case.
-        // Currently, optimistic messages might not have a real DB id initially, but let's assume we use temporary IDs.
-        // If it's from the current chat context, append it.
-        if (
-          activeChat &&
-          (msg.senderId === activeChat.id || msg.receiverId === activeChat.id)
-        ) {
-          const existingIndex = prev.findIndex((m) => {
-            // Perfect ID match
-            if (m.id === msg.id) return true;
-            // Loose dedupe for optimistic messages
-            if (m.id.startsWith('temp-') && m.senderId === msg.senderId) {
-              const clientIdMatch = (m as any).clientId && (m as any).clientId === (msg as any).clientId;
-              if (clientIdMatch) return true;
+      const chat = activeChatRef.current;
 
-              const isSameContent = m.content?.trim() === msg.content?.trim();
-              const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime());
-              return isSameContent && timeDiff < 5000; // 5-second window
-            }
-            return false;
-          });
+      // SENDER GUARD: If somehow the server echoes our own message, ignore it
+      if (msg.senderId === currentUser.id) return;
 
-          if (existingIndex !== -1) {
-            const next = [...prev];
-            next[existingIndex] = msg; // Replace optimistic message with real message
-            return next;
-          }
+      // Only append if the message belongs to the currently active conversation
+      if (
+        chat &&
+        (msg.senderId === chat.id || msg.receiverId === chat.id)
+      ) {
+        setMessages((prev) => {
+          // Deduplicate by ID
+          if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
-        }
-        return prev;
-      });
+        });
+      }
     };
 
     socket.on('new_message', handleNewMessage);
     return () => {
       socket.off('new_message', handleNewMessage);
     };
-  }, [socket, activeChat]);
+  }, [socket, currentUser]);
+
+  // ── 1b. Listen for message confirmations (replaces our optimistic messages) ──
+  useEffect(() => {
+    if (!socket || !currentUser) return;
+
+    const handleConfirmed = (msg: Message) => {
+      setMessages((prev) => {
+        // Find the optimistic temp message and replace it with the real one
+        const idx = prev.findIndex((m) => {
+          if (m.id === msg.id) return true; // Already real, skip
+          if (!m.id.startsWith('temp-')) return false;
+          // Match by same sender + similar content + close timestamp
+          const isSameSender = m.senderId === msg.senderId;
+          const isSameContent = m.content?.trim() === msg.content?.trim();
+          const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime());
+          return isSameSender && isSameContent && timeDiff < 10000;
+        });
+
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = msg;
+          return next;
+        }
+
+        // If no optimistic match found, check if the message already exists
+        if (prev.some((m) => m.id === msg.id)) return prev;
+
+        // Append as new (edge case: optimistic was somehow lost)
+        return [...prev, msg];
+      });
+    };
+
+    socket.on('message_confirmed', handleConfirmed);
+    return () => {
+      socket.off('message_confirmed', handleConfirmed);
+    };
+  }, [socket, currentUser]);
 
   // ── 2. Handle Setting Active Chat & Fetching DB History ──
   const setActiveChat = useCallback(
@@ -159,7 +188,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Create optimistic message
       const optimisticMsg: Message = {
-        id: `temp-${Date.now()}`,
+        id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         content,
         fileUrl,
         senderId: currentUser.id,

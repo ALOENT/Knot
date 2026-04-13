@@ -7,6 +7,7 @@ import ChatWindow from '@/components/ChatWindow';
 import Sidebar, { TabType } from '@/components/Sidebar';
 import SearchPanel, { SearchResult } from '@/components/SearchPanel';
 import ProfileModal from '@/components/ProfileModal';
+import AdminPanel from '@/components/AdminPanel';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -20,15 +21,30 @@ export default function DashboardPage() {
   // SPA State
   const [activeTab, setActiveTab] = useState<TabType>('messages');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   
   // Responsive view state
   const [showRightPanel, setShowRightPanel] = useState(false); // For mobile
 
-  // ── Fetch chat users (acting as global Contacts fallback for now) ──
+  // ── Fetch chat users (conversations with last message, or fallback to all users) ──
   useEffect(() => {
-    api.get('/users')
-      .then((res) => setChatUsers(res.data.users || []))
-      .catch((err) => console.error('Failed to load contacts', err));
+    // Try conversations endpoint first, then fall back to users list
+    api.get('/messages/conversations')
+      .then((res) => {
+        const convos = res.data.conversations || [];
+        if (convos.length > 0) {
+          setChatUsers(convos);
+        } else {
+          // No conversations yet, fall back to showing all users
+          return api.get('/users').then((r) => setChatUsers(r.data.users || []));
+        }
+      })
+      .catch(() => {
+        // Fallback: just show all users
+        api.get('/users')
+          .then((res) => setChatUsers(res.data.users || []))
+          .catch((err) => console.error('Failed to load contacts', err));
+      });
   }, []);
 
   // ── Handlers ──
@@ -87,7 +103,7 @@ export default function DashboardPage() {
         return <SearchPanel onMessageUser={handleMessageSearchedUser} />;
       case 'groups':
         return (
-           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-black/40 backdrop-blur-md border-r border-white/5">
+           <div className="flex flex-col items-center justify-center h-full text-center p-8" style={{ background: 'rgba(10, 10, 10, 0.6)' }}>
              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-4">
                 <span className="text-2xl">🚧</span>
              </div>
@@ -107,6 +123,7 @@ export default function DashboardPage() {
         activeTab={activeTab} 
         onChangeTab={handleTabChange} 
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         currentUser={currentUser}
       />
       
@@ -118,13 +135,20 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
+      {/* Admin Control Panel — only renders for admin users */}
+      <AdminPanel
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+      />
+
       {/* ── Main Layout Wrapper ── */}
       <div className="flex flex-1 h-full md:pl-[var(--sidebar-w)]">
         
         {/* ── Left Content Pane (List/Search) ── */}
         <div
-          className={`h-full shrink-0 relative bg-[#0a0a0c] z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-[var(--chat-list-w)]'}`}
+          className={`h-full shrink-0 relative z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-[var(--chat-list-w)]'}`}
           style={{
+            background: '#0a0a0c',
             borderRight: '1px solid rgba(255, 255, 255, 0.04)',
           }}
         >
@@ -143,7 +167,10 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Right Content Pane (Chat Window) ── */}
-        <div className={`flex-1 h-full bg-[#030303] relative ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}>
+        <div
+          className={`flex-1 h-full relative ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}
+          style={{ background: '#0a0a0a' }}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeChat?.id ?? 'empty'}
