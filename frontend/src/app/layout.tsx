@@ -39,7 +39,7 @@ export default function RootLayout({
         <CursorGlow />
 
         {/* Page content */}
-        <div className="relative z-[1]">
+        <div className="relative z-1">
           {children}
         </div>
       </body>

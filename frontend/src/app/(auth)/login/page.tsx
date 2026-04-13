@@ -54,7 +54,7 @@ export default function LoginPage() {
         {/* Border-beam card */}
         <div className="border-beam">
           <div
-            className="relative z-[1] rounded-2xl p-8"
+            className="relative z-1 rounded-2xl p-8"
             style={{ background: 'rgba(8, 8, 8, 0.9)' }}
           >
             <motion.div variants={stagger} initial="hidden" animate="show">
@@ -82,7 +82,7 @@ export default function LoginPage() {
                     transition={{ duration: 0.2 }}
                     className="mb-5"
                   >
-                    <div className="flex items-center gap-2 rounded-lg bg-red-500/[0.06] border border-red-500/10 px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-lg bg-red-500/6 border border-red-500/10 px-3 py-2.5">
                       <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
                       <span className="text-xs text-red-300">{error}</span>
                     </div>

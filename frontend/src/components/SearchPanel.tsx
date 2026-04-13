@@ -90,8 +90,8 @@ export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanel
 
   return (
     <div className="flex flex-col h-full w-full bg-black/40 backdrop-blur-md">
-      <div className="p-6 border-b border-white/[0.04]">
-        <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-4">
+      <div className="p-6 border-b border-white/4">
+        <h2 className="text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-indigo-400 to-purple-400 mb-4">
           Discover
         </h2>
         
@@ -127,11 +127,11 @@ export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanel
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             key={user.id}
-            className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.02] transition-colors group cursor-default"
+            className="flex items-center justify-between p-3 rounded-xl hover:bg-white/2 transition-colors group cursor-default"
           >
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
+                <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
                   {user.profilePic ? (
                     <img
                       src={user.profilePic}

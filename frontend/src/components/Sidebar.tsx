@@ -49,7 +49,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
           {/* Admin-only logo badge — opens Admin Control Panel */}
           {isAdmin && onOpenAdmin && (
             <button onClick={onOpenAdmin} className="focus:outline-none" title="Admin Control Panel">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105 neon-glow-active">
+              <div className="h-9 w-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105 neon-glow-active">
                 <div className="w-full h-full bg-[#0a0a0a] rounded-[10px] flex items-center justify-center overflow-hidden">
                   <Shield className="w-4 h-4 text-indigo-400" />
                 </div>
@@ -71,7 +71,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-5 w-5 relative z-[1]" />
+                  <item.icon className="h-5 w-5 relative z-1" />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
@@ -87,7 +87,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
 
         {/* Settings — opens Profile for all users */}
         <button
-          className="btn-icon hover:!text-indigo-400"
+          className="btn-icon hover:text-indigo-400!"
           title="Settings"
           onClick={onOpenProfile}
         >

@@ -115,7 +115,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100"
           />
 
           {/* Modal */}
@@ -128,14 +128,14 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-lg max-h-[80vh] z-[101] overflow-hidden rounded-2xl border border-white/10 flex flex-col"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-lg max-h-[80vh] z-101 overflow-hidden rounded-2xl border border-white/10 flex flex-col"
             style={{
               background: 'linear-gradient(145deg, rgba(20,20,25,0.97) 0%, rgba(10,10,15,0.97) 100%)',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(99, 102, 241, 0.08)',
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/6 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-indigo-500/15 flex items-center justify-center">
                   <Shield className="w-4 h-4 text-indigo-400" />
@@ -153,7 +153,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             </div>
 
             {/* Section Tabs */}
-            <div className="flex gap-1 px-6 py-3 border-b border-white/[0.04] shrink-0">
+            <div className="flex gap-1 px-6 py-3 border-b border-white/4 shrink-0">
               {sectionButtons.map((sec) => (
                 <button
                   key={sec.id}
@@ -161,7 +161,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     activeSection === sec.id
                       ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03] border border-transparent'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/3 border border-transparent'
                   }`}
                 >
                   <sec.icon className="w-3.5 h-3.5" />
@@ -217,7 +217,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                 <div className="space-y-4">
                   {/* User Search */}
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#444] pointer-events-none z-[2]" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#444] pointer-events-none z-2" />
                     <input
                       type="text"
                       value={searchQuery}
@@ -240,7 +240,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       {searchResults.map((user) => (
                         <div
                           key={user.id}
-                          className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.02] transition-colors"
+                          className="flex items-center justify-between p-3 rounded-xl hover:bg-white/2 transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             <div

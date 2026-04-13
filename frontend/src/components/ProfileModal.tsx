@@ -79,7 +79,7 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100"
           />
 
           <motion.div
@@ -91,13 +91,13 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm z-[101] overflow-hidden rounded-2xl border border-white/10"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm z-101 overflow-hidden rounded-2xl border border-white/10"
             style={{
               background: 'linear-gradient(145deg, rgba(30,30,35,0.95) 0%, rgba(15,15,20,0.95) 100%)',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
             }}
           >
-            <div className="h-24 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 relative">
+            <div className="h-24 bg-linear-to-r from-indigo-500/20 to-purple-500/20 relative">
               <button
                 ref={closeButtonRef}
                 onClick={onClose}
@@ -110,7 +110,7 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
 
             <div className="px-6 pb-6 relative pt-12">
               <div className="absolute -top-10 left-6">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 p-[2px] shadow-xl">
+                <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-indigo-500 to-purple-600 p-[2px] shadow-xl">
                   <div className="w-full h-full bg-black rounded-2xl flex items-center justify-center overflow-hidden">
                     {user.profilePic ? (
                       <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
@@ -137,12 +137,12 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
               )}
 
               <div className="mt-6 space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5">
                   <Mail className="w-5 h-5 text-gray-500" />
                   <span className="text-sm text-gray-300">{user.email}</span>
                 </div>
                 {user.createdAt && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5">
                     <Calendar className="w-5 h-5 text-gray-500" />
                     <span className="text-sm text-gray-300">Joined {new Date(user.createdAt).toLocaleDateString()}</span>
                   </div>

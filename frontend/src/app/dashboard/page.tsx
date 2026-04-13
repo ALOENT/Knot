@@ -142,11 +142,11 @@ export default function DashboardPage() {
       />
 
       {/* ── Main Layout Wrapper ── */}
-      <div className="flex flex-1 h-full md:pl-[var(--sidebar-w)]">
+      <div className="flex flex-1 h-full md:pl-(--sidebar-w)">
         
         {/* ── Left Content Pane (List/Search) ── */}
         <div
-          className={`h-full shrink-0 relative z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-[var(--chat-list-w)]'}`}
+          className={`h-full shrink-0 relative z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-(--chat-list-w)'}`}
           style={{
             background: '#0a0a0c',
             borderRight: '1px solid rgba(255, 255, 255, 0.04)',
