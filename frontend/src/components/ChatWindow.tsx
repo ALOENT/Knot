@@ -298,15 +298,43 @@ export default function ChatWindow({
       <div className="flex-1 overflow-y-auto overflow-x-hidden w-full max-w-full px-4 py-4 space-y-2">
         {/* Loading skeleton while messages are being fetched */}
         {isLoadingMessages && messages.length === 0 && (
-          <div className="space-y-3 animate-pulse">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`rounded-xl ${i % 2 === 0 ? 'bg-indigo-500/10' : 'bg-white/4'}`}
-                  style={{ width: `${30 + ((i * 13) % 35)}%`, height: '42px' }}
-                />
-              </div>
-            ))}
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => {
+              const isMine = i % 3 === 0;
+              return (
+                <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className="rounded-xl overflow-hidden relative"
+                    style={{
+                      width: `${28 + ((i * 17) % 40)}%`,
+                      height: `${36 + ((i * 7) % 20)}px`,
+                      background: isMine
+                        ? 'rgba(99, 102, 241, 0.08)'
+                        : 'rgba(255, 255, 255, 0.03)',
+                      border: `1px solid ${isMine ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.04)'}`,
+                    }}
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%)',
+                        animation: `shimmer 1.8s ease-in-out infinite`,
+                        animationDelay: `${i * 0.15}s`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-center text-[11px] text-[#555] pt-2 animate-pulse">
+              Loading messages…
+            </p>
+            <style>{`
+              @keyframes shimmer {
+                0%   { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+            `}</style>
           </div>
         )}
         <AnimatePresence initial={false}>
