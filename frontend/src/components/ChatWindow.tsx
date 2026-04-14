@@ -295,7 +295,7 @@ export default function ChatWindow({
       </div>
 
       {/* ── Messages area ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden w-full max-w-full px-4 py-4 space-y-2">
         {/* Loading skeleton while messages are being fetched */}
         {isLoadingMessages && messages.length === 0 && (
           <div className="space-y-3 animate-pulse">
@@ -322,7 +322,7 @@ export default function ChatWindow({
                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-xl px-3.5 py-2 text-[13px] leading-relaxed overflow-hidden ${
+                  className={`max-w-[85%] md:max-w-[70%] shrink break-words break-all rounded-xl px-3.5 py-2 text-[13px] leading-relaxed overflow-hidden ${
                     isMine
                       ? 'bg-[#6366f1] text-white rounded-br-sm'
                       : 'text-[#ccc] rounded-bl-sm'
@@ -337,7 +337,7 @@ export default function ChatWindow({
                   }
                 >
                   {msg.content && (
-                    <p style={{ overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    <p style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                       {parseMessageContent(msg.content)}
                     </p>
                   )}

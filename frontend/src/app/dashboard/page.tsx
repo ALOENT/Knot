@@ -254,7 +254,7 @@ export default function DashboardPage() {
 
         {/* ── Right Content Pane (Chat Window) ── */}
         <div
-          className={`flex-1 h-full relative ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}
+          className={`flex-1 h-full relative min-w-0 ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}
           style={{ background: '#0a0a0a' }}
         >
           <AnimatePresence mode="wait">
