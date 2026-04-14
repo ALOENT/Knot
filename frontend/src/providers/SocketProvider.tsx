@@ -26,6 +26,19 @@ interface TypingData {
   isTyping: boolean;
 }
 
+interface IncomingMessage {
+  id: string;
+  content?: string | null;
+  senderId: string;
+  receiverId: string;
+  timestamp: string;
+  sender?: {
+    id: string;
+    username: string;
+    profilePic?: string | null;
+  };
+}
+
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
@@ -39,6 +52,8 @@ interface SocketContextType {
   emitStopTyping: (targetUserId: string) => void;
   /** Join a chat room with a target user */
   joinChat: (targetUserId: string) => void;
+  /** The most recently received incoming message (for sidebar sync) */
+  lastReceivedMessage: IncomingMessage | null;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -49,6 +64,7 @@ const SocketContext = createContext<SocketContextType>({
   emitStartTyping: () => {},
   emitStopTyping: () => {},
   joinChat: () => {},
+  lastReceivedMessage: null,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -63,6 +79,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Map<string, boolean>>(new Map());
   const [typingUsers, setTypingUsers] = useState<Map<string, boolean>>(new Map());
+  const [lastReceivedMessage, setLastReceivedMessage] = useState<IncomingMessage | null>(null);
 
   const connect = useCallback(() => {
     if (socketRef.current) return;
@@ -129,6 +146,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       });
     });
 
+    // ── Incoming messages (for sidebar sync) ──
+    socketInstance.on('new_message', (msg: IncomingMessage) => {
+      setLastReceivedMessage(msg);
+    });
+
     socketRef.current = socketInstance;
     setSocket(socketInstance);
   }, []);
@@ -174,8 +196,9 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       emitStartTyping,
       emitStopTyping,
       joinChat,
+      lastReceivedMessage,
     }),
-    [socket, isConnected, onlineUsers, typingUsers, emitStartTyping, emitStopTyping, joinChat],
+    [socket, isConnected, onlineUsers, typingUsers, emitStartTyping, emitStopTyping, joinChat, lastReceivedMessage],
   );
 
   return (

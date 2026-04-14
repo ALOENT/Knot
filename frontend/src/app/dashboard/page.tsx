@@ -9,13 +9,15 @@ import SearchPanel, { SearchResult } from '@/components/SearchPanel';
 import ProfileModal from '@/components/ProfileModal';
 import AdminPanel from '@/components/AdminPanel';
 import { useChat } from '@/providers/ChatProvider';
+import { useSocket } from '@/providers/SocketProvider';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import type { ChatUser } from '@/components/ChatList';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentUser, activeChat, messages, setActiveChat, sendMessage } = useChat();
+  const { currentUser, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages } = useChat();
+  const { lastReceivedMessage } = useSocket();
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   
   // SPA State
@@ -47,10 +49,57 @@ export default function DashboardPage() {
       });
   }, []);
 
+  // ── Real-time sidebar sync: update chat list on incoming messages ──
+  useEffect(() => {
+    if (!lastReceivedMessage || !currentUser) return;
+
+    const msg = lastReceivedMessage;
+    const isFromMe = msg.senderId === currentUser.id;
+    const partnerId = isFromMe ? msg.receiverId : msg.senderId;
+
+    setChatUsers((prev) => {
+      const idx = prev.findIndex((u) => u.id === partnerId);
+      const preview = msg.content?.slice(0, 50) || 'Attachment';
+      const time = new Date(msg.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      if (idx !== -1) {
+        const updated = [...prev];
+        const user = { ...updated[idx], lastMessage: preview, lastMessageTime: time };
+        // Increment unread only if message is from someone else AND not the active chat
+        if (!isFromMe && activeChat?.id !== partnerId) {
+          user.unreadCount = (user.unreadCount || 0) + 1;
+        }
+        updated.splice(idx, 1);
+        return [user, ...updated]; // Move to top
+      } else if (msg.sender && !isFromMe) {
+        // New conversation from an unknown user
+        return [
+          {
+            id: msg.sender.id,
+            username: msg.sender.username,
+            profilePic: msg.sender.profilePic,
+            lastMessage: preview,
+            lastMessageTime: time,
+            unreadCount: activeChat?.id !== partnerId ? 1 : 0,
+          },
+          ...prev,
+        ];
+      }
+      return prev;
+    });
+  }, [lastReceivedMessage, currentUser, activeChat]);
+
   // ── Handlers ──
   const handleSelectChat = useCallback((user: ChatUser) => {
-      setActiveChat(user);
-      setShowRightPanel(true); // Open chat window on mobile
+    setActiveChat(user);
+    setShowRightPanel(true);
+    // Reset unread count for this chat
+    setChatUsers((prev) =>
+      prev.map((u) => (u.id === user.id ? { ...u, unreadCount: 0 } : u)),
+    );
   }, [setActiveChat]);
 
   const handleMessageSearchedUser = useCallback((user: SearchResult) => {
@@ -64,6 +113,32 @@ export default function DashboardPage() {
     });
     setShowRightPanel(true);
   }, [setActiveChat]);
+
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      sendMessage(content);
+      if (activeChat) {
+        const preview = content.slice(0, 50);
+        const time = new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        setChatUsers((prev) => {
+          const idx = prev.findIndex((u) => u.id === activeChat.id);
+          if (idx === -1) return prev;
+          const updated = [...prev];
+          const user = {
+            ...updated[idx],
+            lastMessage: preview,
+            lastMessageTime: time,
+          };
+          updated.splice(idx, 1);
+          return [user, ...updated];
+        });
+      }
+    },
+    [sendMessage, activeChat],
+  );
 
   const handleBack = useCallback(() => {
     setShowRightPanel(false);
@@ -185,8 +260,9 @@ export default function DashboardPage() {
                   activeUser={activeChat}
                   messages={messages}
                   currentUserId={currentUser.id}
-                  onSendMessage={sendMessage}
+                  onSendMessage={handleSendMessage}
                   onBack={handleBack}
+                  isLoadingMessages={isLoadingMessages}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">

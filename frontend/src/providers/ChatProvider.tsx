@@ -25,6 +25,7 @@ interface ChatContextType {
   messages: Message[];
   setActiveChat: (user: ChatUser | null) => void;
   sendMessage: (content: string, fileUrl?: string) => void;
+  isLoadingMessages: boolean;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -35,6 +36,7 @@ const ChatContext = createContext<ChatContextType>({
   messages: [],
   setActiveChat: () => {},
   sendMessage: () => {},
+  isLoadingMessages: false,
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -44,6 +46,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeChat, setActiveChatState] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const messagesAbortRef = useRef<AbortController | null>(null);
   const activeChatRef = useRef<ChatUser | null>(null);
 
@@ -154,10 +157,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (!user) {
         setMessages([]);
+        setIsLoadingMessages(false);
         return;
       }
 
       setMessages([]); // Clear while loading
+      setIsLoadingMessages(true);
       joinChat(user.id);
 
       // Cancel pending fetches
@@ -172,10 +177,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         .then((res) => {
           if (abortController.signal.aborted) return;
           setMessages(res.data.messages || []);
+          setIsLoadingMessages(false);
         })
         .catch((err) => {
           if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
           console.error('[ChatProvider] Fetch messages error:', err);
+          setIsLoadingMessages(false);
         });
     },
     [joinChat]
@@ -214,7 +221,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <ChatContext.Provider value={{ currentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage }}>
+    <ChatContext.Provider value={{ currentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages }}>
       {children}
     </ChatContext.Provider>
   );

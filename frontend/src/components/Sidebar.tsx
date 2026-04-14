@@ -78,7 +78,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
             </button>
           )}
           <button
-            className="btn-icon hover:text-indigo-400!"
+            className="btn-icon text-gray-300 hover:text-indigo-400 transition-colors"
             title="Profile & Settings"
             onClick={onOpenProfile}
           >

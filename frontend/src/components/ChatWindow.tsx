@@ -34,6 +34,7 @@ interface ChatWindowProps {
   currentUserId: string;
   onSendMessage: (content: string) => void;
   onBack?: () => void;
+  isLoadingMessages?: boolean;
 }
 
 /* ════════════════════════════════════════════
@@ -79,6 +80,7 @@ export default function ChatWindow({
   currentUserId,
   onSendMessage,
   onBack,
+  isLoadingMessages,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -294,6 +296,19 @@ export default function ChatWindow({
 
       {/* ── Messages area ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+        {/* Loading skeleton while messages are being fetched */}
+        {isLoadingMessages && messages.length === 0 && (
+          <div className="space-y-3 animate-pulse">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`rounded-xl ${i % 2 === 0 ? 'bg-indigo-500/10' : 'bg-white/[0.04]'}`}
+                  style={{ width: `${30 + ((i * 13) % 35)}%`, height: '42px' }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
         <AnimatePresence initial={false}>
           {messages.map((msg) => {
             const isMine = msg.senderId === currentUserId;
@@ -307,7 +322,7 @@ export default function ChatWindow({
                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[70%] md:max-w-[55%] rounded-xl px-3.5 py-2 text-[13px] leading-relaxed ${
+                  className={`max-w-[75%] rounded-xl px-3.5 py-2 text-[13px] leading-relaxed overflow-hidden ${
                     isMine
                       ? 'bg-[#6366f1] text-white rounded-br-sm'
                       : 'text-[#ccc] rounded-bl-sm'
@@ -322,7 +337,7 @@ export default function ChatWindow({
                   }
                 >
                   {msg.content && (
-                    <p style={{ overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    <p style={{ overflowWrap: 'break-word', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
                       {parseMessageContent(msg.content)}
                     </p>
                   )}

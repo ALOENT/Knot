@@ -162,9 +162,9 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                         {user.lastMessage || 'Start a conversation'}
                       </span>
                     )}
-                    {user.unreadCount && user.unreadCount > 0 && (
+                    {(user.unreadCount ?? 0) > 0 && (
                       <span className="shrink-0 ml-2 flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[9px] font-semibold text-white bg-[#6366f1]">
-                        {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                        {user.unreadCount! > 99 ? '99+' : user.unreadCount}
                       </span>
                     )}
                   </div>
