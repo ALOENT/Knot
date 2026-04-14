@@ -3,16 +3,25 @@ import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from '../config/env';
 
-const pool = new Pool({ connectionString: env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    adapter,
-    log: ['query', 'info', 'warn', 'error'],
+function createPrismaClient(): PrismaClient {
+  const pool = new Pool({
+    connectionString: env.DATABASE_URL,
+    max: 10,             // Max connections in the pool (Neon free tier: 20)
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
   });
+  const adapter = new PrismaPg(pool);
 
-if (env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+  return new PrismaClient({
+    adapter,
+    log: env.NODE_ENV === 'production'
+      ? ['warn', 'error']
+      : ['query', 'info', 'warn', 'error'],
+  });
+}
+
+// Singleton — always cache to prevent multiple pools on hot-reload AND in production
+export const prisma = globalForPrisma.prisma || createPrismaClient();
+globalForPrisma.prisma = prisma;

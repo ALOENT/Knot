@@ -40,7 +40,13 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
       where: whereClause,
       orderBy: { timestamp: 'asc' },
       take,
-      include: {
+      select: {
+        id: true,
+        content: true,
+        fileUrl: true,
+        senderId: true,
+        receiverId: true,
+        timestamp: true,
         sender: {
           select: {
             id: true,
