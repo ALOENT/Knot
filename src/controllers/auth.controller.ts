@@ -14,8 +14,12 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   body: z.object({
-    email: z.string().email('Invalid email format'),
+    // Accept email OR username in either field for backwards compatibility
+    email: z.string().min(1, 'Email or username is required').optional(),
+    identifier: z.string().min(1, 'Email or username is required').optional(),
     password: z.string().min(1, 'Password is required'),
+  }).refine((data) => data.email || data.identifier, {
+    message: 'Email or username is required',
   }),
 });
 
@@ -83,9 +87,20 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password } = req.body;
+    const { email, identifier, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Support both 'email' and 'identifier' fields for flexibility
+    const loginId = (identifier || email || '').trim();
+    if (!loginId) {
+      return res.status(400).json({ success: false, message: 'Email or username is required' });
+    }
+
+    // Detect if the input looks like an email
+    const isEmail = loginId.includes('@');
+
+    const user = isEmail
+      ? await prisma.user.findUnique({ where: { email: loginId } })
+      : await prisma.user.findUnique({ where: { username: loginId } });
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });

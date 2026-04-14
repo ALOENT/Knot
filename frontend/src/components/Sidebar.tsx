@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
@@ -30,12 +29,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenAdmin, currentUser }: SidebarProps) {
-  const [imageError, setImageError] = useState(false);
   const isAdmin = currentUser?.role === 'ADMIN';
-
-  useEffect(() => {
-    setImageError(false);
-  }, [currentUser?.profilePic, currentUser?.id]);
 
   return (
     <>
@@ -44,21 +38,8 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
         className="hidden md:flex flex-col items-center justify-between h-screen glass-sidebar py-5 fixed left-0 top-0 z-40"
         style={{ width: 'var(--sidebar-w)' }}
       >
-        {/* Logo + Nav */}
-        <div className="flex flex-col items-center gap-6">
-          {/* Admin-only logo badge — opens Admin Control Panel */}
-          {isAdmin && onOpenAdmin && (
-            <button onClick={onOpenAdmin} className="focus:outline-none" title="Admin Control Panel">
-              <div className="h-9 w-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-lg hover:shadow-indigo-500/25 transition-all hover:scale-105 neon-glow-active">
-                <div className="w-full h-full bg-[#0a0a0a] rounded-[10px] flex items-center justify-center overflow-hidden">
-                  <Shield className="w-4 h-4 text-indigo-400" />
-                </div>
-              </div>
-            </button>
-          )}
-
-          {/* Standard user — no logo at top, they use Settings below */}
-
+        {/* Nav tabs */}
+        <div className="flex flex-col items-center gap-1">
           <nav className="flex flex-col gap-1 w-full px-2">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
@@ -85,14 +66,25 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
           </nav>
         </div>
 
-        {/* Settings — opens Profile for all users */}
-        <button
-          className="btn-icon hover:text-indigo-400!"
-          title="Settings"
-          onClick={onOpenProfile}
-        >
-          <Settings className="h-5 w-5" />
-        </button>
+        {/* Bottom actions: Admin (if admin) + Settings/Profile */}
+        <div className="flex flex-col items-center gap-2">
+          {isAdmin && onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="btn-icon"
+              title="Admin Control Panel"
+            >
+              <Shield className="h-5 w-5 text-indigo-400" />
+            </button>
+          )}
+          <button
+            className="btn-icon hover:text-indigo-400!"
+            title="Profile & Settings"
+            onClick={onOpenProfile}
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+        </div>
       </aside>
 
       {/* ── Mobile Bottom Tab Bar ── */}
@@ -125,6 +117,15 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
               </button>
             );
           })}
+          {/* Settings tab on mobile */}
+          <button
+            onClick={onOpenProfile}
+            className="relative flex-1 flex flex-col items-center justify-center h-full"
+          >
+            <div className="p-2 rounded-xl transition-all duration-300 text-gray-500">
+              <Settings className="h-5 w-5" />
+            </div>
+          </button>
         </div>
       </nav>
     </>

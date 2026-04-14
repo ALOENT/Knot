@@ -37,6 +37,39 @@ interface ChatWindowProps {
 }
 
 /* ════════════════════════════════════════════
+   Helpers
+   ════════════════════════════════════════════ */
+
+/** Regex that matches http/https URLs in message text */
+const URL_REGEX = /(https?:\/\/[^\s<>"']+)/gi;
+
+/** Parses message text and turns URLs into clickable links */
+function parseMessageContent(text: string): React.ReactNode {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) => {
+    if (URL_REGEX.test(part)) {
+      // Reset regex lastIndex since we're using /g flag
+      URL_REGEX.lastIndex = 0;
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:opacity-80 transition-opacity"
+          style={{ wordBreak: 'break-all' }}
+        >
+          {part}
+        </a>
+      );
+    }
+    // Reset regex lastIndex for next iteration
+    URL_REGEX.lastIndex = 0;
+    return part;
+  });
+}
+
+/* ════════════════════════════════════════════
    Component
    ════════════════════════════════════════════ */
 
@@ -288,7 +321,11 @@ export default function ChatWindow({
                       : undefined
                   }
                 >
-                  {msg.content && <p>{msg.content}</p>}
+                  {msg.content && (
+                    <p style={{ overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                      {parseMessageContent(msg.content)}
+                    </p>
+                  )}
                   {msg.fileUrl && (
                     <img
                       src={msg.fileUrl}

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { Mail, Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { User, Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -21,7 +21,7 @@ const fadeUp = {
 };
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,12 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await api.post('/auth/login', { email, password });
+      // Send as 'email' field for backwards compat — backend accepts both
+      const isEmail = identifier.includes('@');
+      const payload = isEmail
+        ? { email: identifier, password }
+        : { identifier, password };
+      await api.post('/auth/login', payload);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Authentication failed. Please try again.');
@@ -99,24 +104,24 @@ export default function LoginPage() {
                       htmlFor="login-email"
                       className="block text-xs font-medium text-[#555] mb-1.5 tracking-wide"
                     >
-                      Email
+                      Email or Username
                     </label>
                     <div className="relative">
-                      <Mail
+                      <User
                         className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-150 ${
-                          focusedField === 'email' ? 'text-[#818cf8]' : 'text-[#444]'
+                          focusedField === 'identifier' ? 'text-[#818cf8]' : 'text-[#444]'
                         }`}
                       />
                       <input
-                        id="login-email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        onFocus={() => setFocusedField('email')}
+                        id="login-identifier"
+                        type="text"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        onFocus={() => setFocusedField('identifier')}
                         onBlur={() => setFocusedField(null)}
                         className="input-field pl-10"
-                        placeholder="you@example.com"
-                        autoComplete="email"
+                        placeholder="you@example.com or username"
+                        autoComplete="username"
                         required
                       />
                     </div>

@@ -98,6 +98,10 @@ export const initChatSocket = (io: Server) => {
         // Broadcast to everyone EXCEPT the sender in the room
         socket.broadcast.to(roomId).emit('new_message', savedMessage);
         
+        // Also emit to the receiver's personal room so they get it
+        // even if they haven't joined this DM room yet (viewing another chat)
+        io.to(receiverId).emit('new_message', savedMessage);
+        
         // Send confirmation back to the sender only (replaces optimistic temp message)
         socket.emit('message_confirmed', savedMessage);
       } catch (error) {
