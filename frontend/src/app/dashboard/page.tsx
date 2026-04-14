@@ -49,9 +49,20 @@ export default function DashboardPage() {
       });
   }, []);
 
+  // Keep a ref to activeChat to avoid re-triggering socket effect when switching chats
+  const activeChatRef = useRef(activeChat?.id);
+  useEffect(() => {
+    activeChatRef.current = activeChat?.id;
+  }, [activeChat?.id]);
+
+  // Keep track of the last processed message to prevent duplicate updates
+  const lastMsgIdRef = useRef<string | null>(null);
+
   // ── Real-time sidebar sync: update chat list on incoming messages ──
   useEffect(() => {
     if (!lastReceivedMessage || !currentUser) return;
+    if (lastMsgIdRef.current === lastReceivedMessage.id) return;
+    lastMsgIdRef.current = lastReceivedMessage.id;
 
     const msg = lastReceivedMessage;
     const isFromMe = msg.senderId === currentUser.id;
@@ -69,7 +80,7 @@ export default function DashboardPage() {
         const updated = [...prev];
         const user = { ...updated[idx], lastMessage: preview, lastMessageTime: time };
         // Increment unread only if message is from someone else AND not the active chat
-        if (!isFromMe && activeChat?.id !== partnerId) {
+        if (!isFromMe && activeChatRef.current !== partnerId) {
           user.unreadCount = (user.unreadCount || 0) + 1;
         }
         updated.splice(idx, 1);
@@ -83,14 +94,14 @@ export default function DashboardPage() {
             profilePic: msg.sender.profilePic,
             lastMessage: preview,
             lastMessageTime: time,
-            unreadCount: activeChat?.id !== partnerId ? 1 : 0,
+            unreadCount: activeChatRef.current !== partnerId ? 1 : 0,
           },
           ...prev,
         ];
       }
       return prev;
     });
-  }, [lastReceivedMessage, currentUser, activeChat]);
+  }, [lastReceivedMessage, currentUser]);
 
   // ── Handlers ──
   const handleSelectChat = useCallback((user: ChatUser) => {

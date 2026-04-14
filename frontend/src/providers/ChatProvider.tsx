@@ -172,6 +172,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       const abortController = new AbortController();
       messagesAbortRef.current = abortController;
 
+      // Mark as read on the backend asynchronously
+      api.put(`/messages/mark-read/${user.id}`).catch((err) => {
+        console.error('[ChatProvider] Failed to mark as read:', err);
+      });
+
       api
         .get(`/messages/${user.id}`, { signal: abortController.signal })
         .then((res) => {

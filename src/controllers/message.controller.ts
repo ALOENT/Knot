@@ -75,11 +75,6 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-/**
- * @desc    Get list of conversations (unique partners with last message preview)
- * @route   GET /api/messages/conversations
- * @access  Private
- */
 export const getConversations = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
@@ -87,44 +82,32 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    // Find all unique partner IDs the user has exchanged messages with
-    const sentMessages = await prisma.message.findMany({
-      where: { senderId: userId, isDeleted: false },
-      select: { receiverId: true },
-      distinct: ['receiverId'],
+    // Lean query: find users who have sent/received messages with currentUser limit using relations
+    const partners = await prisma.user.findMany({
+      where: {
+        id: { not: userId },
+        OR: [
+          { sentMessages: { some: { receiverId: userId, isDeleted: false } } },
+          { receivedMessages: { some: { senderId: userId, isDeleted: false } } },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        profilePic: true,
+        isOnline: true,
+      },
     });
 
-    const receivedMessages = await prisma.message.findMany({
-      where: { receiverId: userId, isDeleted: false },
-      select: { senderId: true },
-      distinct: ['senderId'],
-    });
-
-    // Merge into unique partner set
-    const partnerIds = new Set<string>();
-    sentMessages.forEach((m) => partnerIds.add(m.receiverId));
-    receivedMessages.forEach((m) => partnerIds.add(m.senderId));
-
-    // For each partner, get their profile and the latest message
     const conversations = await Promise.all(
-      Array.from(partnerIds).map(async (partnerId) => {
-        const [partner, lastMessage, unreadCount] = await Promise.all([
-          prisma.user.findUnique({
-            where: { id: partnerId },
-            select: {
-              id: true,
-              username: true,
-              profilePic: true,
-              isOnline: true,
-              lastSeen: true,
-            },
-          }),
+      partners.map(async (partner) => {
+        const [lastMessage, unreadCount] = await Promise.all([
           prisma.message.findFirst({
             where: {
               isDeleted: false,
               OR: [
-                { senderId: userId, receiverId: partnerId },
-                { senderId: partnerId, receiverId: userId },
+                { senderId: userId, receiverId: partner.id },
+                { senderId: partner.id, receiverId: userId },
               ],
             },
             orderBy: { timestamp: 'desc' },
@@ -137,15 +120,13 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
           }),
           prisma.message.count({
             where: {
-              senderId: partnerId,
+              senderId: partner.id,
               receiverId: userId,
               isSeen: false,
               isDeleted: false,
             },
           }),
         ]);
-
-        if (!partner) return null;
 
         return {
           id: partner.id,
@@ -159,18 +140,47 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
       })
     );
 
-    // Filter nulls and sort by last message time (newest first)
+    // Sort by last message time (newest first)
     const filtered = conversations
-      .filter(Boolean)
       .sort((a, b) => {
-        const timeA = a!.lastMessageTime ? new Date(a!.lastMessageTime).getTime() : 0;
-        const timeB = b!.lastMessageTime ? new Date(b!.lastMessageTime).getTime() : 0;
+        const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+        const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
         return timeB - timeA;
       });
 
     res.status(200).json({ success: true, conversations: filtered });
   } catch (error) {
     logger.error('Failed to fetch conversations', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Mark all messages from a partner as read
+ * @route   PUT /api/messages/mark-read/:partnerId
+ * @access  Private
+ */
+export const markAsRead = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    const partnerId = req.params.partnerId;
+
+    if (!userId || !partnerId) {
+      return res.status(400).json({ success: false, message: 'Missing parameters' });
+    }
+
+    await prisma.message.updateMany({
+      where: {
+        senderId: partnerId,
+        receiverId: userId,
+        isSeen: false,
+      },
+      data: { isSeen: true },
+    });
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Failed to mark as read', error);
     next(error);
   }
 };
