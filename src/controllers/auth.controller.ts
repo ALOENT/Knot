@@ -95,12 +95,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(400).json({ success: false, message: 'Email or username is required' });
     }
 
-    // Detect if the input looks like an email
-    const isEmail = loginId.includes('@');
-
-    const user = isEmail
-      ? await prisma.user.findUnique({ where: { email: loginId } })
-      : await prisma.user.findUnique({ where: { username: loginId } });
+    // Lookup user by email first, then by username
+    let user = await prisma.user.findUnique({ where: { email: loginId } });
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { username: loginId } });
+    }
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });

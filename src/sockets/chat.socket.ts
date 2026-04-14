@@ -98,9 +98,18 @@ export const initChatSocket = (io: Server) => {
         // Broadcast to everyone EXCEPT the sender in the room
         socket.broadcast.to(roomId).emit('new_message', savedMessage);
         
-        // Also emit to the receiver's personal room so they get it
-        // even if they haven't joined this DM room yet (viewing another chat)
-        io.to(receiverId).emit('new_message', savedMessage);
+        // Also emit to the receiver's personal sockets if they aren't in the DM room
+        // to avoid duplicate delivery while ensuring all their connections get the message
+        const roomSockets = io.sockets.adapter.rooms.get(roomId);
+        const receiverSockets = io.sockets.adapter.rooms.get(receiverId);
+
+        if (receiverSockets) {
+          Array.from(receiverSockets).forEach((socketId) => {
+            if (!roomSockets?.has(socketId)) {
+              io.to(socketId).emit('new_message', savedMessage);
+            }
+          });
+        }
         
         // Send confirmation back to the sender only (replaces optimistic temp message)
         socket.emit('message_confirmed', savedMessage);

@@ -34,11 +34,8 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Send as 'email' field for backwards compat — backend accepts both
-      const isEmail = identifier.includes('@');
-      const payload = isEmail
-        ? { email: identifier, password }
-        : { identifier, password };
+      // Backend will determine whether the identifier is an email or username
+      const payload = { identifier, password };
       await api.post('/auth/login', payload);
       router.push('/dashboard');
     } catch (err: any) {
