@@ -302,7 +302,7 @@ export default function ChatWindow({
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`rounded-xl ${i % 2 === 0 ? 'bg-indigo-500/10' : 'bg-white/[0.04]'}`}
+                  className={`rounded-xl ${i % 2 === 0 ? 'bg-indigo-500/10' : 'bg-white/4'}`}
                   style={{ width: `${30 + ((i * 13) % 35)}%`, height: '42px' }}
                 />
               </div>
@@ -337,7 +337,7 @@ export default function ChatWindow({
                   }
                 >
                   {msg.content && (
-                    <p style={{ overflowWrap: 'break-word', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
+                    <p style={{ overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                       {parseMessageContent(msg.content)}
                     </p>
                   )}

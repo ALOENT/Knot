@@ -165,8 +165,12 @@ export const markAsRead = async (req: Request, res: Response, next: NextFunction
     const userId = req.user?.id;
     const partnerId = req.params.partnerId;
 
-    if (!userId || !partnerId) {
-      return res.status(400).json({ success: false, message: 'Missing parameters' });
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    if (!partnerId) {
+      return res.status(400).json({ success: false, message: 'Partner ID is required' });
     }
 
     await prisma.message.updateMany({
