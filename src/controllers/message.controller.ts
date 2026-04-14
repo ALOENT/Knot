@@ -163,7 +163,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
 export const markAsRead = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const partnerId = req.params.partnerId;
+    const partnerId = req.params.partnerId as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
