@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, Mail, Shield, Bell, Moon, LogOut } from 'lucide-react';
+import { Camera, User, Mail, Shield, Bell, Moon, LogOut, CheckCircle } from 'lucide-react';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
+
 export default function SettingsSection() {
   const { currentUser, setCurrentUser } = useChat();
   
   const [formData, setFormData] = useState({
     username: currentUser?.username || '',
-    displayName: (currentUser as any)?.displayName || '',
+    displayName: currentUser?.displayName || '',
     bio: currentUser?.bio || '',
     profilePic: currentUser?.profilePic || '',
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +26,7 @@ export default function SettingsSection() {
       setFormData(prev => ({
         ...prev,
         username: currentUser.username || prev.username,
-        displayName: (currentUser as any)?.displayName || prev.displayName,
+        displayName: currentUser.displayName || prev.displayName,
         bio: currentUser.bio || prev.bio,
         profilePic: currentUser.profilePic || prev.profilePic,
       }));
@@ -39,15 +41,24 @@ export default function SettingsSection() {
     setIsSaving(true);
     setMessage('');
     try {
-      const { data } = await api.put('/api/users/profile', formData);
+      const { data } = await api.put('/users/profile', {
+        username: formData.username,
+        displayName: formData.displayName,
+        bio: formData.bio,
+        profilePic: formData.profilePic,
+      });
       if (data.success) {
-        // Update context with new user info
+        // Update context with new user info so UI refreshes without reload
         if (data.user) {
           setCurrentUser(data.user);
         }
-        setMessage('Profile updated successfully.');
+        setMessageType('success');
+        setMessage('Profile updated successfully!');
+        // Auto-dismiss success message after 3 seconds
+        setTimeout(() => setMessage(''), 3000);
       }
     } catch (error: any) {
+      setMessageType('error');
       setMessage(error.response?.data?.message || 'Error updating profile');
     } finally {
       setIsSaving(false);
@@ -155,9 +166,14 @@ export default function SettingsSection() {
               </div>
 
               {message && (
-                <p className={`text-sm ${message.includes('success') ? 'text-green-400' : 'text-red-400'}`}>
+                <motion.p 
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`text-sm flex items-center gap-2 ${messageType === 'success' ? 'text-green-400' : 'text-red-400'}`}
+                >
+                  {messageType === 'success' && <CheckCircle size={14} />}
                   {message}
-                </p>
+                </motion.p>
               )}
 
               <button 
