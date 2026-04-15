@@ -40,7 +40,7 @@ export default function SettingsSection() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[var(--background)] overflow-y-auto">
+    <div className="flex-1 flex flex-col h-full bg-(--background) overflow-y-auto">
       {/* Header */}
       <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/[0.01]">
         <h2 className="text-2xl font-semibold text-white tracking-tight">Settings</h2>
