@@ -51,7 +51,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
+                  <item.icon className="h-6 w-6 relative z-1" strokeWidth={1.5} />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
@@ -83,7 +83,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             title="Profile & Settings"
             onClick={() => onChangeTab('settings')}
           >
-            <Settings className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
+            <Settings className="h-6 w-6 relative z-1" strokeWidth={1.5} />
             {activeTab === 'settings' && (
               <motion.div
                 layoutId="sidebar-active"
