@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, User, Mail, Shield, Bell, Moon, LogOut } from 'lucide-react';
 import { useChat } from '@/providers/ChatProvider';
-import axios from 'axios';
-
+import { api } from '@/lib/api';
 export default function SettingsSection() {
   const { currentUser, setCurrentUser } = useChat();
   
@@ -40,7 +39,7 @@ export default function SettingsSection() {
     setIsSaving(true);
     setMessage('');
     try {
-      const { data } = await axios.put('/api/users/profile', formData);
+      const { data } = await api.put('/api/users/profile', formData);
       if (data.success) {
         // Update context with new user info
         if (data.user) {
@@ -84,11 +83,16 @@ export default function SettingsSection() {
                       setMessage('File size must be less than 5MB');
                       return;
                     }
-                    if (formData.profilePic && formData.profilePic.startsWith('blob:')) {
-                       URL.revokeObjectURL(formData.profilePic);
-                    }
-                    const url = URL.createObjectURL(file);
-                    setFormData(prev => ({ ...prev, profilePic: url }));
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (typeof reader.result === 'string') {
+                        setFormData(prev => ({ ...prev, profilePic: reader.result as string }));
+                      }
+                    };
+                    reader.onerror = () => {
+                      setMessage('Error reading file. Please try a different image.');
+                    };
+                    reader.readAsDataURL(file);
                   }
                 }}
               />
