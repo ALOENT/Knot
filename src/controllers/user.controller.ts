@@ -35,6 +35,7 @@ export const searchUsers = async (req: Request, res: Response) => {
       select: {
         id: true,
         username: true,
+        displayName: true,
         email: includeEmail,
         profilePic: true,
         isOnline: true,
@@ -83,6 +84,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
       select: {
         id: true,
         username: true,
+        displayName: true,
         email: includeEmail,
         profilePic: true,
         isOnline: true,
@@ -115,5 +117,64 @@ export const getAllUsers = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error while fetching contacts' });
+  }
+};
+
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/users/profile
+ * @access  Private
+ */
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { username, displayName, bio, profilePic } = req.body;
+    
+    // Optional: add validation
+    if (username && username.length < 3) {
+      return res.status(400).json({ success: false, message: 'Username must be at least 3 characters' });
+    }
+
+    // Check if username is already taken by someone else
+    if (username) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username,
+          id: { not: req.user.id }
+        }
+      });
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'Username is already taken' });
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        ...(username && { username }),
+        ...(displayName !== undefined && { displayName: displayName === '' ? null : displayName }),
+        ...(bio !== undefined && { bio: bio === '' ? null : bio }),
+        ...(profilePic && { profilePic }),
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        profilePic: true,
+        bio: true,
+        isOnline: true,
+        role: true,
+        privacySettings: true
+      }
+    });
+
+    res.status(200).json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ success: false, message: 'Server error while updating profile' });
   }
 };

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { AuthUser } from '@/providers/ChatProvider';
 
-export type TabType = 'messages' | 'groups' | 'contacts' | 'search';
+export type TabType = 'messages' | 'groups' | 'contacts' | 'search' | 'settings';
 
 const navItems: { icon: any; id: TabType; label: string }[] = [
   { icon: MessageSquare, id: 'messages', label: 'Chats' },
@@ -23,12 +23,11 @@ const navItems: { icon: any; id: TabType; label: string }[] = [
 interface SidebarProps {
   activeTab: TabType;
   onChangeTab: (tab: TabType) => void;
-  onOpenProfile: () => void;
   onOpenAdmin?: () => void;
   currentUser?: AuthUser | null;
 }
 
-export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenAdmin, currentUser }: SidebarProps) {
+export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUser }: SidebarProps) {
   const isAdmin = currentUser?.role === 'ADMIN';
 
   return (
@@ -48,15 +47,15 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
                   key={item.id}
                   onClick={() => onChangeTab(item.id)}
                   className={`relative w-full aspect-square flex items-center justify-center rounded-xl transition-colors ${
-                    isActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'
+                    isActive ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-5 w-5 relative z-1" />
+                  <item.icon className="h-6 w-6 relative z-1" strokeWidth={1.5} />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
-                      className="absolute inset-0 rounded-xl bg-indigo-500/10 border border-indigo-500/20"
+                      className="absolute inset-0 rounded-xl bg-blue-500/10 border border-blue-500/20"
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
                   )}
@@ -74,15 +73,24 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
               className="btn-icon"
               title="Admin Control Panel"
             >
-              <Shield className="h-5 w-5 text-indigo-400" />
+              <Shield className="h-6 w-6 text-blue-500" strokeWidth={1.5} />
             </button>
           )}
           <button
-            className="btn-icon text-gray-300 hover:text-indigo-400 transition-colors"
+            className={`btn-icon transition-colors relative w-12 aspect-square flex items-center justify-center rounded-xl ${
+              activeTab === 'settings' ? 'text-blue-500' : 'text-gray-300 hover:text-blue-500'
+            }`}
             title="Profile & Settings"
-            onClick={onOpenProfile}
+            onClick={() => onChangeTab('settings')}
           >
-            <Settings className="h-5 w-5" />
+            <Settings className="h-6 w-6 relative z-1" strokeWidth={1.5} />
+            {activeTab === 'settings' && (
+              <motion.div
+                layoutId="sidebar-active"
+                className="absolute inset-0 rounded-xl bg-blue-500/10 border border-blue-500/20"
+                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+              />
+            )}
           </button>
         </div>
       </aside>
@@ -105,13 +113,13 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
                 onClick={() => onChangeTab(item.id)}
                 className="relative flex-1 flex flex-col items-center justify-center h-full"
               >
-                <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-indigo-400' : 'text-gray-500'}`}>
-                   <item.icon className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
+                   <item.icon strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                 </div>
                 {isActive && (
                   <motion.div
                     layoutId="mobile-active-indicator"
-                    className="absolute top-0 w-8 h-[2px] bg-indigo-500 rounded-b-full shadow-[0_2px_8px_rgba(99,102,241,0.5)]"
+                    className="absolute top-0 w-8 h-[2px] bg-blue-500 rounded-b-full shadow-[0_2px_8px_rgba(37,99,235,0.5)]"
                   />
                 )}
               </button>
@@ -119,12 +127,18 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenProfile, onOpenA
           })}
           {/* Settings tab on mobile */}
           <button
-            onClick={onOpenProfile}
-            className="relative flex-1 flex flex-col items-center justify-center h-full"
+            onClick={() => onChangeTab('settings')}
+            className={`relative flex-1 flex flex-col items-center justify-center h-full ${activeTab === 'settings' ? 'text-blue-500' : 'text-gray-500'}`}
           >
-            <div className="p-2 rounded-xl transition-all duration-300 text-gray-500">
-              <Settings className="h-5 w-5" />
+            <div className="p-2 rounded-xl transition-all duration-300">
+              <Settings strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
             </div>
+            {activeTab === 'settings' && (
+              <motion.div
+                layoutId="mobile-active-indicator"
+                className="absolute top-0 w-8 h-[2px] bg-blue-500 rounded-b-full shadow-[0_2px_8px_rgba(37,99,235,0.5)]"
+              />
+            )}
           </button>
         </div>
       </nav>
