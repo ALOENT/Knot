@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, User, Mail, Shield, Bell, Moon, LogOut } from 'lucide-react';
 import { useChat } from '@/providers/ChatProvider';
 import axios from 'axios';
 
 export default function SettingsSection() {
-  const { currentUser } = useChat();
+  const { currentUser, setCurrentUser } = useChat();
   
   const [formData, setFormData] = useState({
     username: currentUser?.username || '',
@@ -16,6 +16,21 @@ export default function SettingsSection() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      setFormData(prev => ({
+        ...prev,
+        username: currentUser.username || prev.username,
+        displayName: (currentUser as any)?.displayName || prev.displayName,
+        bio: currentUser.bio || prev.bio,
+        profilePic: currentUser.profilePic || prev.profilePic,
+      }));
+    }
+  }, [currentUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -28,8 +43,9 @@ export default function SettingsSection() {
       const { data } = await axios.put('/api/users/profile', formData);
       if (data.success) {
         // Update context with new user info
-        // Simulating login function if it accepts updated user or re-fetching
-        // Usually you'd update context directly. We'll simply show a success message.
+        if (data.user) {
+          setCurrentUser(data.user);
+        }
         setMessage('Profile updated successfully.');
       }
     } catch (error: any) {
@@ -56,7 +72,30 @@ export default function SettingsSection() {
             
             {/* Avatar Upload Placeholder */}
             <div className="flex flex-col items-center gap-4">
-              <div className="relative group cursor-pointer">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      setMessage('File size must be less than 5MB');
+                      return;
+                    }
+                    if (formData.profilePic && formData.profilePic.startsWith('blob:')) {
+                       URL.revokeObjectURL(formData.profilePic);
+                    }
+                    const url = URL.createObjectURL(file);
+                    setFormData(prev => ({ ...prev, profilePic: url }));
+                  }
+                }}
+              />
+              <div 
+                 className="relative group cursor-pointer" 
+                 onClick={() => fileInputRef.current?.click()}
+              >
                 <div className="w-28 h-28 rounded-full overflow-hidden bg-white/5 border border-white/10 relative">
                   {formData.profilePic ? (
                     <img src={formData.profilePic} alt="Profile" className="w-full h-full object-cover" />
@@ -147,8 +186,15 @@ export default function SettingsSection() {
                   <p className="text-white/40 text-xs">Receive alerts for new messages</p>
                 </div>
               </div>
-              <div className="w-10 h-6 bg-blue-600 rounded-full flex items-center px-1 cursor-pointer">
-                <div className="w-4 h-4 bg-white rounded-full translate-x-4 shadow-sm" />
+              <div 
+                className={`w-10 h-6 rounded-full flex items-center px-1 cursor-pointer transition-colors ${notificationsEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                role="switch"
+                aria-checked={notificationsEnabled}
+                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setNotificationsEnabled(!notificationsEnabled); }}
+                tabIndex={0}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${notificationsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
               </div>
             </div>
 
@@ -162,8 +208,15 @@ export default function SettingsSection() {
                   <p className="text-white/40 text-xs">Always use deep blue theme</p>
                 </div>
               </div>
-              <div className="w-10 h-6 bg-blue-600 rounded-full flex items-center px-1 cursor-pointer">
-                <div className="w-4 h-4 bg-white rounded-full translate-x-4 shadow-sm" />
+              <div 
+                className={`w-10 h-6 rounded-full flex items-center px-1 cursor-pointer transition-colors ${darkModeEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                role="switch"
+                aria-checked={darkModeEnabled}
+                onClick={() => setDarkModeEnabled(!darkModeEnabled)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setDarkModeEnabled(!darkModeEnabled); }}
+                tabIndex={0}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${darkModeEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
               </div>
             </div>
 

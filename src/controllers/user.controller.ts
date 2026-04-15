@@ -157,7 +157,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         ...(username && { username }),
         ...(displayName !== undefined && { displayName: displayName === '' ? null : displayName }),
         ...(bio !== undefined && { bio: bio === '' ? null : bio }),
-        ...(profilePic && { profilePic }),
+        ...(profilePic !== undefined && { profilePic: profilePic === '' ? null : profilePic }),
       },
       select: {
         id: true,
