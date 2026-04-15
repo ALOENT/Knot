@@ -5,13 +5,13 @@ import { useChat } from '@/providers/ChatProvider';
 import axios from 'axios';
 
 export default function SettingsSection() {
-  const { user, login } = useChat();
+  const { currentUser } = useChat();
   
   const [formData, setFormData] = useState({
-    username: user?.username || '',
-    displayName: user?.displayName || '',
-    bio: user?.bio || '',
-    profilePic: user?.profilePic || '',
+    username: currentUser?.username || '',
+    displayName: (currentUser as any)?.displayName || '',
+    bio: currentUser?.bio || '',
+    profilePic: currentUser?.profilePic || '',
   });
 
   const [isSaving, setIsSaving] = useState(false);

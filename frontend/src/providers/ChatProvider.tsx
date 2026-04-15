@@ -9,6 +9,7 @@ import type { Message } from '@/components/ChatWindow';
 export interface AuthUser {
   id: string;
   username: string;
+  displayName?: string;
   profilePic?: string;
   bio?: string;
   email?: string;
