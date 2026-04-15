@@ -6,7 +6,7 @@ import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
 import Sidebar, { TabType } from '@/components/Sidebar';
 import SearchPanel, { SearchResult } from '@/components/SearchPanel';
-import ProfileModal from '@/components/ProfileModal';
+import SettingsSection from '@/components/SettingsSection';
 import AdminPanel from '@/components/AdminPanel';
 import { useChat } from '@/providers/ChatProvider';
 import { useSocket } from '@/providers/SocketProvider';
@@ -22,7 +22,6 @@ export default function DashboardPage() {
   
   // SPA State
   const [activeTab, setActiveTab] = useState<TabType>('messages');
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   
   // Responsive view state
@@ -168,7 +167,9 @@ export default function DashboardPage() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
-    if (showRightPanel && activeChat === null) {
+    if (tab === 'settings') {
+      setShowRightPanel(true);
+    } else if (showRightPanel && activeChat === null) {
       setShowRightPanel(false);
     }
   };
@@ -178,6 +179,7 @@ export default function DashboardPage() {
     switch (activeTab) {
       case 'messages':
       case 'contacts': // For now, Contacts just shows ChatList too
+      case 'settings': // Maintain left list when entering settings
         return (
           <ChatList
             users={chatUsers}
@@ -208,17 +210,8 @@ export default function DashboardPage() {
       <Sidebar 
         activeTab={activeTab} 
         onChangeTab={handleTabChange} 
-        onOpenProfile={() => setIsProfileOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
         currentUser={currentUser}
-      />
-      
-      {/* Profile Modal */}
-      <ProfileModal 
-        isOpen={isProfileOpen} 
-        onClose={() => setIsProfileOpen(false)} 
-        user={currentUser} 
-        onLogout={handleLogout}
       />
 
       {/* Admin Control Panel — only renders for admin users */}
@@ -255,18 +248,20 @@ export default function DashboardPage() {
         {/* ── Right Content Pane (Chat Window) ── */}
         <div
           className={`flex-1 h-full relative min-w-0 ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}
-          style={{ background: '#0a0a0a' }}
+          style={{ background: '#0a0a0c' }}
         >
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeChat?.id ?? 'empty'}
+              key={activeTab === 'settings' ? 'settings' : activeChat?.id ?? 'empty'}
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
               className="h-full w-full"
             >
-              {activeChat && currentUser ? (
+              {activeTab === 'settings' ? (
+                <SettingsSection />
+              ) : activeChat && currentUser ? (
                 <ChatWindow
                   activeUser={activeChat}
                   messages={messages}
