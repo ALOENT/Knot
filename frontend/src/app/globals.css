@@ -1,11 +1,6 @@
 @import "tailwindcss";
 
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-accent: var(--accent);
-  --color-surface: var(--surface);
-}
+/* removed @theme to fix warning, using @layer base instead */
 
 @layer base {
   :root {
@@ -44,7 +39,7 @@
   }
 
   ::selection {
-    background: rgba(99, 102, 241, 0.25);
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
     color: #fff;
   }
 
@@ -164,8 +159,8 @@
 
 .input-field:focus {
   background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* Chat search/filter input — padding-left controlled by component */
@@ -193,8 +188,8 @@
 
 .chat-input:focus {
   background: rgba(255, 255, 255, 0.035);
-  border-color: rgba(99, 102, 241, 0.25);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* ═══════════════════════════════════════════
@@ -211,7 +206,7 @@
   font-size: 14px;
   font-weight: 500;
   color: #fff;
-  background: #6366f1;
+  background: var(--accent);
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -220,8 +215,8 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5558e8;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+  background: color-mix(in srgb, var(--accent) 85%, black);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
   transform: translateY(-1px);
 }
 
@@ -255,13 +250,13 @@
 }
 
 .btn-icon.active {
-  background: rgba(99, 102, 241, 0.08);
-  color: #818cf8;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent-secondary);
 }
 
 .btn-icon:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px #6366f1;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent);
   color: #fff;
 }
 
@@ -331,8 +326,8 @@
 }
 
 .chat-item.active {
-  background: rgba(99, 102, 241, 0.05);
-  border-color: rgba(99, 102, 241, 0.1);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .chat-item.active::before {
@@ -344,7 +339,7 @@
   width: 2px;
   height: 50%;
   border-radius: 0 2px 2px 0;
-  background: #6366f1;
+  background: var(--accent);
 }
 
 /* ═══════════════════════════════════════════
@@ -352,7 +347,7 @@
    ═══════════════════════════════════════════ */
 
 .neon-glow-active {
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.15), 0 0 4px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 15%, transparent), 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* ═══════════════════════════════════════════
@@ -362,7 +357,7 @@
 .EmojiPickerReact {
   --epr-bg-color: #111113 !important;
   --epr-category-label-bg-color: #111113 !important;
-  --epr-hover-bg-color: rgba(99, 102, 241, 0.1) !important;
+  --epr-hover-bg-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
   --epr-search-border-color: rgba(255, 255, 255, 0.08) !important;
   --epr-text-color: #e5e5e5 !important;
   --epr-search-input-bg-color: rgba(255, 255, 255, 0.04) !important;
@@ -396,8 +391,8 @@
   background: conic-gradient(
     from var(--border-beam-angle),
     transparent 60%,
-    rgba(99, 102, 241, 0.3) 80%,
-    rgba(129, 140, 248, 0.5) 90%,
+    color-mix(in srgb, var(--accent) 30%, transparent) 80%,
+    color-mix(in srgb, var(--accent-secondary) 50%, transparent) 90%,
     transparent 100%
   );
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);

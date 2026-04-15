@@ -27,6 +27,7 @@ interface ChatContextType {
   setActiveChat: (user: ChatUser | null) => void;
   sendMessage: (content: string, fileUrl?: string) => void;
   isLoadingMessages: boolean;
+  setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -38,6 +39,7 @@ const ChatContext = createContext<ChatContextType>({
   setActiveChat: () => {},
   sendMessage: () => {},
   isLoadingMessages: false,
+  setCurrentUser: () => {},
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -227,7 +229,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <ChatContext.Provider value={{ currentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages }}>
+    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages }}>
       {children}
     </ChatContext.Provider>
   );
