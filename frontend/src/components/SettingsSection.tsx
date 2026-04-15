@@ -20,6 +20,16 @@ export default function SettingsSection() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dismissTimeoutRef = useRef<number | null>(null);
+
+  // Cleanup dismiss timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dismissTimeoutRef.current !== null) {
+        clearTimeout(dismissTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -55,7 +65,13 @@ export default function SettingsSection() {
         setMessageType('success');
         setMessage('Profile updated successfully!');
         // Auto-dismiss success message after 3 seconds
-        setTimeout(() => setMessage(''), 3000);
+        if (dismissTimeoutRef.current !== null) {
+          clearTimeout(dismissTimeoutRef.current);
+        }
+        dismissTimeoutRef.current = window.setTimeout(() => {
+          setMessage('');
+          dismissTimeoutRef.current = null;
+        }, 3000);
       }
     } catch (error: any) {
       setMessageType('error');
