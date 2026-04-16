@@ -29,6 +29,8 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<Stats>({ totalAgents: 0, activeConversations: 0, bannedEntities: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -39,32 +41,44 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
+      setFetchError(null);
       const res = await api.get('/admin/users');
       if (res.data.success) {
         setUsers(res.data.data.users);
         setStats(res.data.data.stats);
+      } else {
+        setFetchError('Failed to load admin data');
       }
     } catch (error) {
       console.error('Failed to fetch admin data', error);
+      setFetchError('Failed to fetch admin data. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleUpdateStatus = async (userId: string, updates: { isBanned?: boolean; isVerified?: boolean }) => {
+    if (loadingUsers[userId]) return;
+    
     try {
+      setLoadingUsers(prev => ({ ...prev, [userId]: true }));
       // Optimistic update
       setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updates } : u)));
+      setFetchError(null);
       
       const res = await api.put('/admin/update-status', { userId, ...updates });
       
       if (!res.data.success) {
         // Revert on failure
-        fetchAdminData();
+        await fetchAdminData();
+        setFetchError(res.data.message || 'Failed to update user. Changes reverted.');
       }
     } catch (error) {
       console.error('Failed to update user status', error);
-      fetchAdminData();
+      await fetchAdminData();
+      setFetchError('Failed to update user status. Changes reverted.');
+    } finally {
+      setLoadingUsers(prev => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -131,6 +145,15 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               <h3 className="font-medium">User Database</h3>
             </div>
             
+            {fetchError && (
+              <div className="bg-red-500/10 border-l-4 border-red-500 text-red-300 p-4 m-4 rounded-lg flex justify-between items-center text-sm font-medium">
+                {fetchError}
+                <button onClick={() => setFetchError(null)} className="text-red-400 hover:text-red-300">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            
             <div className="overflow-x-auto">
               {isLoading ? (
                 <div className="p-8 flex justify-center items-center text-gray-500">
@@ -147,6 +170,13 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
+                    {users.length === 0 && !isLoading && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                          No users found
+                        </td>
+                      </tr>
+                    )}
                     {users.map(user => (
                       <motion.tr 
                         key={user.id} 
@@ -202,8 +232,9 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
 
                         {/* Actions Cell */}
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 focus-within:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                             <button
+                              disabled={loadingUsers[user.id]}
                               onClick={() => handleUpdateStatus(user.id, { isVerified: !user.isVerified })}
                               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                                 user.isVerified 
@@ -216,6 +247,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                             </button>
                             {user.role !== 'ADMIN' && (
                                 <button
+                                  disabled={loadingUsers[user.id]}
                                   onClick={() => handleUpdateStatus(user.id, { isBanned: !user.isBanned })}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                                     user.isBanned 

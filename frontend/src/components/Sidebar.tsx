@@ -51,7 +51,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-5 w-5 relative z-1" strokeWidth={1.25} />
+                  <item.icon className="h-5 w-5 relative z-10" strokeWidth={1.25} />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
