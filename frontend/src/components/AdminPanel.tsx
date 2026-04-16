@@ -1,309 +1,245 @@
-'use client';
-
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Shield, Users, AlertTriangle, Search, Ban, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Users, Activity, Ban, CheckCircle, XCircle, BadgeCheck, X } from 'lucide-react';
 import { api } from '@/lib/api';
+
+interface AdminUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string | null;
+  profilePic: string | null;
+  role: string;
+  isBanned: boolean;
+  isVerified: boolean;
+}
+
+interface Stats {
+  totalAgents: number;
+  activeConversations: number;
+  bannedEntities: number;
+}
 
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface AdminUser {
-  id: string;
-  username: string;
-  email?: string;
-  profilePic?: string | null;
-  isOnline: boolean;
-  role?: string;
-}
-
 export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [totalUsers, setTotalUsers] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [activeSection, setActiveSection] = useState<'overview' | 'users' | 'reports'>('overview');
-
-  // Escape to close
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalAgents: 0, activeConversations: 0, bannedEntities: 0 });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      closeButtonRef.current?.focus();
-      return () => document.removeEventListener('keydown', handleKeyDown);
+      fetchAdminData();
     }
-  }, [isOpen, handleKeyDown]);
-
-  // Fetch stats on mount
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    // Single fetch for total count using the revamped endpoint
-    api.get('/users?limit=1')
-      .then((res) => {
-        setTotalUsers(res.data.pagination?.total ?? res.data.users?.length ?? 0);
-      })
-      .catch(() => setTotalUsers(null));
   }, [isOpen]);
 
-  const searchAbortController = useRef<AbortController | null>(null);
-
-  // Reset search state when query is cleared
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      if (searchAbortController.current) {
-        searchAbortController.current.abort();
-      }
-      setSearchResults([]);
-      setHasSearched(false);
-      setIsSearching(false);
-    }
-  }, [searchQuery]);
-
-  // Search users
-  const handleSearch = async () => {
-    const queryToSearch = searchQuery.trim();
-    if (!queryToSearch) return;
-
-    if (searchAbortController.current) {
-      searchAbortController.current.abort();
-    }
-    const abortController = new AbortController();
-    searchAbortController.current = abortController;
-
-    setIsSearching(true);
-    setHasSearched(true);
+  const fetchAdminData = async () => {
     try {
-      const res = await api.get(`/users/search?query=${encodeURIComponent(queryToSearch)}`, {
-        signal: abortController.signal
-      });
-      setSearchResults(res.data.users || []);
-    } catch (err: any) {
-      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
-        // Ignored cancellation
-        return;
+      setIsLoading(true);
+      const res = await api.get('/admin/users');
+      if (res.data.success) {
+        setUsers(res.data.data.users);
+        setStats(res.data.data.stats);
       }
-      setSearchResults([]);
+    } catch (error) {
+      console.error('Failed to fetch admin data', error);
     } finally {
-      if (!abortController.signal.aborted) {
-        setIsSearching(false);
-      }
+      setIsLoading(false);
     }
   };
 
-  const sectionButtons = [
-    { id: 'overview' as const, label: 'Overview', icon: Shield },
-    { id: 'users' as const, label: 'Users', icon: Users },
-    { id: 'reports' as const, label: 'Reports', icon: AlertTriangle },
-  ];
+  const handleUpdateStatus = async (userId: string, updates: { isBanned?: boolean; isVerified?: boolean }) => {
+    try {
+      // Optimistic update
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updates } : u)));
+      
+      const res = await api.put('/admin/update-status', { userId, ...updates });
+      
+      if (!res.data.success) {
+        // Revert on failure
+        fetchAdminData();
+      }
+    } catch (error) {
+      console.error('Failed to update user status', error);
+      fetchAdminData();
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        className="fixed inset-0 z-50 flex flex-col bg-(--background) text-white overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/1 shrink-0">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-6 w-6 text-blue-500" />
+            <h2 className="text-2xl font-semibold tracking-tight">Command Center</h2>
+          </div>
+          <button
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100"
-          />
-
-          {/* Modal */}
-          <motion.div
-            ref={modalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="admin-panel-title"
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-lg max-h-[80vh] z-101 overflow-hidden rounded-2xl border border-white/10 flex flex-col"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20,20,25,0.97) 0%, rgba(10,10,15,0.97) 100%)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(99, 102, 241, 0.08)',
-            }}
+            className="p-2 rounded-xl hover:bg-white/5 transition-colors"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/6 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-indigo-500/15 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-indigo-400" />
-                </div>
-                <h2 id="admin-panel-title" className="text-base font-semibold text-white">Admin Control Panel</h2>
-              </div>
-              <button
-                ref={closeButtonRef}
-                onClick={onClose}
-                aria-label="Close admin panel"
-                className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            <X className="h-6 w-6 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto w-full p-8 max-w-7xl mx-auto space-y-8">
+          {/* Top Stats Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 flex items-center gap-4">
+               <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                  <ShieldCheck className="h-6 w-6" />
+               </div>
+               <div>
+                  <p className="text-sm text-blue-200/60 font-medium">Total Agents</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalAgents}</p>
+               </div>
             </div>
-
-            {/* Section Tabs */}
-            <div className="flex gap-1 px-6 py-3 border-b border-white/4 shrink-0">
-              {sectionButtons.map((sec) => (
-                <button
-                  key={sec.id}
-                  onClick={() => setActiveSection(sec.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    activeSection === sec.id
-                      ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/3 border border-transparent'
-                  }`}
-                >
-                  <sec.icon className="w-3.5 h-3.5" />
-                  {sec.label}
-                </button>
-              ))}
+            <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 flex items-center gap-4">
+               <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                  <Activity className="h-6 w-6" />
+               </div>
+               <div>
+                  <p className="text-sm text-blue-200/60 font-medium">Active Conversations</p>
+                  <p className="text-2xl font-bold text-white">{stats.activeConversations}</p>
+               </div>
             </div>
+            <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 flex items-center gap-4">
+               <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                  <Ban className="h-6 w-6" />
+               </div>
+               <div>
+                  <p className="text-sm text-blue-200/60 font-medium">Banned Entities</p>
+                  <p className="text-2xl font-bold text-white">{stats.bannedEntities}</p>
+               </div>
+            </div>
+          </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {activeSection === 'overview' && (
-                <div className="space-y-4">
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div
-                      className="rounded-xl p-4"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                      }}
-                    >
-                      <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Total Users</p>
-                      <p className="text-2xl font-bold text-white">{totalUsers ?? '—'}</p>
-                    </div>
-                    <div
-                      className="rounded-xl p-4"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                      }}
-                    >
-                      <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Active Reports</p>
-                      <p className="text-2xl font-bold text-white">0</p>
-                    </div>
-                  </div>
-                  <div
-                    className="rounded-xl p-4"
-                    style={{
-                      background: 'rgba(99, 102, 241, 0.04)',
-                      border: '1px solid rgba(99, 102, 241, 0.1)',
-                    }}
-                  >
-                    <p className="text-xs text-indigo-300 font-medium mb-1">System Status</p>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 8px rgba(34, 197, 94, 0.5)' }} />
-                      <span className="text-sm text-gray-300">All systems operational</span>
-                    </div>
-                  </div>
+          {/* User Management Table */}
+          <div className="bg-[#0a0a0c] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex items-center">
+              <Users className="w-5 h-5 text-gray-400 mr-2" />
+              <h3 className="font-medium">User Database</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              {isLoading ? (
+                <div className="p-8 flex justify-center items-center text-gray-500">
+                  Loading entities...
                 </div>
-              )}
-
-              {activeSection === 'users' && (
-                <div className="space-y-4">
-                  {/* User Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#444] pointer-events-none z-2" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder="Search users by name or email..."
-                      className="chat-input text-xs"
-                      style={{ paddingLeft: '40px' }}
-                    />
-                  </div>
-
-                  {isSearching && (
-                    <div className="flex justify-center py-6">
-                      <div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-                    </div>
-                  )}
-
-                  {!isSearching && searchResults.length > 0 && (
-                    <div className="space-y-1">
-                      {searchResults.map((user) => (
-                        <div
-                          key={user.id}
-                          className="flex items-center justify-between p-3 rounded-xl hover:bg-white/2 transition-colors"
-                        >
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 bg-white/[0.02]">
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">God-Mode Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {users.map(user => (
+                      <motion.tr 
+                        key={user.id} 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="hover:bg-white/[0.02] transition-colors group"
+                      >
+                        {/* User Cell */}
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center"
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.04)',
-                                border: '1px solid rgba(255, 255, 255, 0.06)',
-                              }}
-                            >
+                            <div className="h-10 w-10 flex-shrink-0 rounded-full border border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
                               {user.profilePic ? (
-                                <img src={user.profilePic} alt={user.username} className="h-full w-full rounded-full object-cover" />
+                                <img src={user.profilePic} alt="avatar" className="w-full h-full object-cover" />
                               ) : (
-                                <span className="text-xs font-medium text-[#888]">
-                                  {user.username.charAt(0).toUpperCase()}
+                                <span className="text-gray-400 text-sm font-semibold">
+                                  {(user.displayName || user.username).charAt(0).toUpperCase()}
                                 </span>
                               )}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{user.username}</p>
-                              {user.email && <p className="text-[10px] text-gray-500">{user.email}</p>}
+                              <div className="font-medium text-white flex items-center gap-1">
+                                {user.displayName || user.username}
+                                {user.isVerified && <BadgeCheck className="w-4 h-4 text-blue-500" />}
+                              </div>
+                              {user.displayName && (
+                                <div className="text-xs text-gray-500">@{user.username}</div>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <div className={`w-1.5 h-1.5 rounded-full ${user.isOnline ? 'bg-green-500' : 'bg-gray-600'}`} />
-                            <span className="text-[10px] text-gray-500">{user.isOnline ? 'Online' : 'Offline'}</span>
+                        </td>
+
+                        {/* Role Cell */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
+                            user.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                          }`}>
+                            {user.role}
+                          </span>
+                        </td>
+
+                        {/* Status Cell */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {user.isBanned ? (
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                              <XCircle className="w-4 h-4" /> Banned
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-green-400">
+                              <CheckCircle className="w-4 h-4" /> Active
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions Cell */}
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleUpdateStatus(user.id, { isVerified: !user.isVerified })}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                                user.isVerified 
+                                  ? 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
+                                  : 'bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20'
+                              }`}
+                            >
+                              <BadgeCheck className="w-4 h-4" />
+                              {user.isVerified ? 'Unverify' : 'Verify'}
+                            </button>
+                            {user.role !== 'ADMIN' && (
+                                <button
+                                  onClick={() => handleUpdateStatus(user.id, { isBanned: !user.isBanned })}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                                    user.isBanned 
+                                      ? 'bg-gray-500/10 hover:bg-gray-500/20 text-gray-300 border border-gray-500/20'
+                                      : 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20'
+                                  }`}
+                                >
+                                  <Ban className="w-4 h-4" />
+                                  {user.isBanned ? 'Unban' : 'Ban'}
+                                </button>
+                            )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        </td>
 
-                  {!isSearching && searchResults.length === 0 && hasSearched && searchQuery && (
-                    <p className="text-center text-sm text-gray-500 py-6">No users found</p>
-                  )}
-
-                  {!searchQuery && (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <Users className="w-8 h-8 text-gray-600 mb-2" />
-                      <p className="text-sm text-gray-500">Search for users to manage</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeSection === 'reports' && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
-                    }}
-                  >
-                    <CheckCircle className="w-6 h-6 text-green-500/60" />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-1">No Active Reports</h3>
-                  <p className="text-xs text-gray-500">All clear — no reported messages to review.</p>
-                </div>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
-          </motion.div>
-        </>
-      )}
+          </div>
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }
