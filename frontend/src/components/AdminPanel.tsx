@@ -70,12 +70,20 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       
       if (!res.data.success) {
         // Revert on failure
-        await fetchAdminData();
+        try {
+          await fetchAdminData();
+        } catch (rollbackError) {
+          console.error('Rollback fetch failed', rollbackError);
+        }
         setFetchError(res.data.message || 'Failed to update user. Changes reverted.');
       }
     } catch (error) {
       console.error('Failed to update user status', error);
-      await fetchAdminData();
+      try {
+        await fetchAdminData();
+      } catch (rollbackError) {
+        console.error('Rollback fetch failed', rollbackError);
+      }
       setFetchError('Failed to update user status. Changes reverted.');
     } finally {
       setLoadingUsers(prev => ({ ...prev, [userId]: false }));

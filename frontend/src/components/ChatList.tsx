@@ -144,10 +144,10 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#e5e5e5] truncate flex items-center">
-                      {user.displayName || user.username}
+                    <span className="text-sm font-medium text-[#e5e5e5] flex items-center min-w-0">
+                      <span className="truncate">{user.displayName || user.username}</span>
                       {user.isVerified && (
-                        <BadgeCheck className="w-3.5 h-3.5 text-blue-500 ml-1 shrink-0" />
+                        <BadgeCheck className="w-3.5 h-3.5 text-blue-500 ml-1 shrink-0" role="img" aria-label="Verified user" />
                       )}
                     </span>
                     {user.lastMessageTime && (
