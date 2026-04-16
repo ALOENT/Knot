@@ -51,7 +51,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-6 w-6 relative z-[1]" strokeWidth={1.25} />
+                  <item.icon className="h-5 w-5 relative z-[1]" strokeWidth={1.25} />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
@@ -73,7 +73,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               className="btn-icon"
               title="Admin Control Panel"
             >
-              <Shield className="h-6 w-6 text-blue-500" strokeWidth={1.25} />
+              <Shield className="h-5 w-5 text-blue-500" strokeWidth={1.25} />
             </button>
           )}
 
@@ -92,7 +92,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                 className="w-full h-full object-cover"
               />
             ) : (
-              <UserCircle className="h-6 w-6 text-gray-500" strokeWidth={1.25} />
+              <UserCircle className="h-5 w-5 text-gray-500" strokeWidth={1.25} />
             )}
           </button>
         </div>
@@ -117,7 +117,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                 className="relative flex-1 flex flex-col items-center justify-center h-full"
               >
                 <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
-                   <item.icon strokeWidth={1.25} className={`h-6 w-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                   <item.icon strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                 </div>
                 {isActive && (
                   <motion.div
@@ -142,7 +142,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                      <img src={currentUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
                   </div>
                ) : (
-                  <UserCircle strokeWidth={1.25} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+                  <UserCircle strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
                )}
             </div>
             {activeTab === 'settings' && (
