@@ -139,7 +139,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02]">
+                    <tr className="border-b border-white/5 bg-white/2">
                       <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">User</th>
                       <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
                       <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
@@ -152,12 +152,12 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                         key={user.id} 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="hover:bg-white/[0.02] transition-colors group"
+                        className="hover:bg-white/2 transition-colors group"
                       >
                         {/* User Cell */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 flex-shrink-0 rounded-full border border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
+                            <div className="h-10 w-10 shrink-0 rounded-full border border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
                               {user.profilePic ? (
                                 <img src={user.profilePic} alt="avatar" className="w-full h-full object-cover" />
                               ) : (
