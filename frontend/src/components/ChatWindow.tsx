@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import type { ChatUser } from '@/components/ChatList';
 import dynamic from 'next/dynamic';
@@ -92,8 +92,34 @@ export default function ChatWindow({
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const { onlineUsers, typingUsers, emitStartTyping, emitStopTyping } = useSocket();
 
+  // Reporting State
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
   const isOnline = activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false;
   const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
+
+  const handleSendReport = async () => {
+    if (!activeUser || !reportReason) return;
+    try {
+      setIsSubmittingReport(true);
+      const res = await api.post('/reports', {
+        reportedUserId: activeUser.id,
+        reason: reportReason
+      });
+      if (res.data.success) {
+        setIsReportModalOpen(false);
+        setReportReason('');
+        alert('User has been reported. Admins will review the context.');
+      }
+    } catch (error) {
+      console.error('Failed to report user', error);
+      alert('Failed to submit report. Please try again.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -291,12 +317,83 @@ export default function ChatWindow({
         </div>
 
         {/* Actions — Calls removed, only more options */}
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 relative group/menu">
           <motion.button aria-label="More options" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
             <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
+          
+          <div className="absolute top-full right-0 mt-2 w-36 py-1 bg-[#0f0f12] border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-50">
+             <button 
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+              >
+               <Flag className="w-3.5 h-3.5" />
+               Report User
+             </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Report Modal ── */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#0a0a0c] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-3xl"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <h4 className="text-lg font-bold">Report User</h4>
+                <button onClick={() => setIsReportModalOpen(false)} className="btn-icon">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-xs text-gray-500">
+                  Select a reason for reporting <strong>{activeUser.displayName || activeUser.username}</strong>. A snapshot of the last 15 messages will be sent to admins for review.
+                </p>
+                <div className="space-y-2">
+                  {['Spam', 'Harassment', 'Abusive Language', 'Inappropriate Content', 'Other'].map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setReportReason(reason)}
+                      className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all ${
+                        reportReason === reason 
+                          ? 'bg-red-600/10 border-red-500/40 text-red-400' 
+                          : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="p-6 border-t border-white/5 bg-white/2 flex gap-3">
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/5 transition-all"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleSendReport}
+                  disabled={!reportReason || isSubmittingReport}
+                  className="flex-1 py-2.5 bg-red-600 disabled:opacity-50 rounded-xl text-sm font-bold tracking-wide transition-all"
+                >
+                  {isSubmittingReport ? 'SENDING...' : 'SUBMIT REPORT'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Messages area ── */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden w-full max-w-full px-4 py-4 space-y-2">

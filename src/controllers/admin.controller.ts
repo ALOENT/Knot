@@ -154,7 +154,7 @@ export const resolveReport = async (req: Request, res: Response, next: NextFunct
     const { id } = req.params;
 
     const report = await prisma.report.update({
-      where: { id },
+      where: { id: id as string },
       data: { status: 'RESOLVED' }
     });
 
