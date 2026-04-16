@@ -134,6 +134,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
         id: true,
         email: true,
         username: true,
+        displayName: true,
         bio: true,
         profilePic: true,
         banner: true,
