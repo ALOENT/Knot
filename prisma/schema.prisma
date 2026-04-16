@@ -28,6 +28,8 @@ model User {
   isOnline        Boolean   @default(false)
   lastSeen        DateTime?
   role            Role      @default(USER)
+  isVerified      Boolean   @default(false)
+  isBanned        Boolean   @default(false)
   privacySettings Json?     @default("{\"showBlueTick\": true, \"showTyping\": true}")
 
   createdAt DateTime @default(now())

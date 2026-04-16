@@ -46,6 +46,8 @@ const sendTokenResponse = (user: any, statusCode: number, res: Response) => {
       email: user.email,
       username: user.username,
       role: user.role,
+      isVerified: user.isVerified,
+      isBanned: user.isBanned,
     },
   });
 };
@@ -105,6 +107,10 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    if (user.isBanned) {
+      return res.status(403).json({ success: false, message: 'Your account has been banned. Please contact support.' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -140,6 +146,8 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
         banner: true,
         isOnline: true,
         role: true,
+        isVerified: true,
+        isBanned: true,
         privacySettings: true,
       },
     });
