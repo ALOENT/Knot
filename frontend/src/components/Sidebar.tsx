@@ -2,21 +2,20 @@
 
 import { motion } from 'framer-motion';
 import {
-  MessageSquare,
-  Users,
+  MessageSquareText,
+  Users2,
   Search,
-  Settings,
-  Hash,
-  Shield
+  Settings2,
+  Shield,
+  UserCircle
 } from 'lucide-react';
 import type { AuthUser } from '@/providers/ChatProvider';
 
 export type TabType = 'messages' | 'groups' | 'contacts' | 'search' | 'settings';
 
 const navItems: { icon: any; id: TabType; label: string }[] = [
-  { icon: MessageSquare, id: 'messages', label: 'Chats' },
-  { icon: Hash, id: 'groups', label: 'Groups' },
-  { icon: Users, id: 'contacts', label: 'Contacts' },
+  { icon: MessageSquareText, id: 'messages', label: 'Chats' },
+  { icon: Users2, id: 'contacts', label: 'Contacts' },
   { icon: Search, id: 'search', label: 'Search' },
 ];
 
@@ -32,7 +31,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
 
   return (
     <>
-      {/* ── Desktop Sidebar — Slim icon rail ── */}
+      {/* ── Desktop Sidebar — Slim icon rail, w-18 (72px) ── */}
       <aside
         className="hidden md:flex flex-col items-center justify-between h-screen glass-sidebar py-5 fixed left-0 top-0 z-40"
         style={{ width: 'var(--sidebar-w)' }}
@@ -65,7 +64,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
           </nav>
         </div>
 
-        {/* Bottom actions: Admin (if admin) + Settings/Profile */}
+        {/* Bottom actions: Admin (if admin) + Settings + Profile avatar */}
         <div className="flex flex-col items-center gap-2">
           {isAdmin && onOpenAdmin && (
             <button
@@ -83,7 +82,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             title="Profile & Settings"
             onClick={() => onChangeTab('settings')}
           >
-            <Settings className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
+            <Settings2 className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
             {activeTab === 'settings' && (
               <motion.div
                 layoutId="sidebar-active"
@@ -92,6 +91,23 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               />
             )}
           </button>
+
+          {/* Profile avatar / icon at very bottom */}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors"
+            title={currentUser?.displayName || currentUser?.username || 'Profile'}
+            onClick={() => onChangeTab('settings')}
+          >
+            {currentUser?.profilePic ? (
+              <img
+                src={currentUser.profilePic}
+                alt={currentUser.displayName || currentUser.username}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <UserCircle className="h-6 w-6 text-gray-500" strokeWidth={1.5} />
+            )}
+          </div>
         </div>
       </aside>
 
@@ -131,7 +147,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             className={`relative flex-1 flex flex-col items-center justify-center h-full ${activeTab === 'settings' ? 'text-blue-500' : 'text-gray-500'}`}
           >
             <div className="p-2 rounded-xl transition-all duration-300">
-              <Settings strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+              <Settings2 strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
             </div>
             {activeTab === 'settings' && (
               <motion.div

@@ -12,6 +12,7 @@ import { useSocket } from '@/providers/SocketProvider';
 export interface ChatUser {
   id: string;
   username: string;
+  displayName?: string | null;
   profilePic?: string | null;
   isOnline?: boolean;
   lastMessage?: string;
@@ -34,9 +35,11 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const { onlineUsers, typingUsers } = useSocket();
 
-  const filtered = users.filter((u) =>
-    u.username.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    const name = u.displayName || u.username;
+    return name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -112,7 +115,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                     {user.profilePic && !imageErrors[user.id] ? (
                       <img
                         src={user.profilePic}
-                        alt={user.username}
+                        alt={user.displayName || user.username}
                         onError={() =>
                           setImageErrors((prev) => ({ ...prev, [user.id]: true }))
                         }
@@ -120,7 +123,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                       />
                     ) : (
                       <span className="text-xs font-medium text-[#888]">
-                        {user.username.charAt(0).toUpperCase()}
+                        {(user.displayName || user.username).charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -141,7 +144,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-[#e5e5e5] truncate">
-                      {user.username}
+                      {user.displayName || user.username}
                     </span>
                     {user.lastMessageTime && (
                       <span className="text-[10px] text-[#444] shrink-0 ml-2">

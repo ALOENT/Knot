@@ -51,6 +51,7 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
           select: {
             id: true,
             username: true,
+            displayName: true,
             profilePic: true,
           },
         },
@@ -100,6 +101,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
       select: {
         id: true,
         username: true,
+        displayName: true,
         profilePic: true,
         isOnline: true,
       },
@@ -137,6 +139,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
         return {
           id: partner.id,
           username: partner.username,
+          displayName: partner.displayName,
           profilePic: partner.profilePic,
           isOnline: partner.isOnline,
           lastMessage: lastMessage?.content || (lastMessage?.fileUrl ? '📎 Attachment' : null),

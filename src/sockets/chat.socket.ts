@@ -89,7 +89,7 @@ export const initChatSocket = (io: Server) => {
             receiverId,
           },
           include: {
-            sender: { select: { id: true, username: true, profilePic: true } }
+            sender: { select: { id: true, username: true, displayName: true, profilePic: true } }
           }
         });
 

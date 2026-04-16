@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, Mail, Shield, Bell, Moon, LogOut, CheckCircle } from 'lucide-react';
+import { Camera, User, Shield, Bell, EyeOff, LogOut, CheckCircle } from 'lucide-react';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
 
@@ -18,7 +18,7 @@ export default function SettingsSection() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<number | null>(null);
 
@@ -31,6 +31,31 @@ export default function SettingsSection() {
     };
   }, []);
 
+  // Fetch the LATEST profile from the backend every time Settings mounts
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/auth/me')
+      .then((res) => {
+        if (cancelled) return;
+        const userData = res.data.data || res.data.user || res.data;
+        // Update global context with fresh data
+        setCurrentUser(userData);
+        // Populate form with the fresh data
+        setFormData({
+          username: userData.username || '',
+          displayName: userData.displayName || '',
+          bio: userData.bio || '',
+          profilePic: userData.profilePic || '',
+        });
+      })
+      .catch(() => {
+        // Silently fail – form will still show stale context data
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep form in sync if currentUser changes (e.g. from another source)
   useEffect(() => {
     if (currentUser) {
       setFormData(prev => ({
@@ -58,7 +83,7 @@ export default function SettingsSection() {
         profilePic: formData.profilePic,
       });
       if (data.success) {
-        // Update context with new user info so UI refreshes without reload
+        // Update global context immediately so ALL UI components reflect the change
         if (data.user) {
           setCurrentUser(data.user);
         }
@@ -211,7 +236,7 @@ export default function SettingsSection() {
           <h3 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-4">App Preferences</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Setting Toggle */}
+            {/* Notifications Toggle */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
@@ -234,25 +259,26 @@ export default function SettingsSection() {
               </div>
             </div>
 
+            {/* Privacy Mode Toggle (UI only) */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                  <Moon size={20} />
+                  <EyeOff size={20} />
                 </div>
                 <div>
-                  <h4 className="text-white text-sm font-medium">Dark Mode</h4>
-                  <p className="text-white/40 text-xs">Always use deep blue theme</p>
+                  <h4 className="text-white text-sm font-medium">Privacy Mode</h4>
+                  <p className="text-white/40 text-xs">Hide online status & read receipts</p>
                 </div>
               </div>
               <div 
-                className={`w-10 h-6 rounded-full flex items-center px-1 cursor-pointer transition-colors ${darkModeEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                className={`w-10 h-6 rounded-full flex items-center px-1 cursor-pointer transition-colors ${privacyModeEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
                 role="switch"
-                aria-checked={darkModeEnabled}
-                onClick={() => setDarkModeEnabled(!darkModeEnabled)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setDarkModeEnabled(!darkModeEnabled); }}
+                aria-checked={privacyModeEnabled}
+                onClick={() => setPrivacyModeEnabled(!privacyModeEnabled)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPrivacyModeEnabled(!privacyModeEnabled); }}
                 tabIndex={0}
               >
-                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${darkModeEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${privacyModeEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
               </div>
             </div>
 
