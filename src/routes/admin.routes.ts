@@ -1,5 +1,5 @@
 import express from 'express';
-import { getUsers, updateUserStatus } from '../controllers/admin.controller';
+import { getUsers, updateUserStatus, getReports, resolveReport } from '../controllers/admin.controller';
 import { protect } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
 
@@ -9,5 +9,9 @@ router.use(protect, requireAdmin);
 
 router.get('/users', getUsers);
 router.put('/update-status', updateUserStatus);
+
+// Reports management
+router.get('/reports', getReports);
+router.put('/reports/:id/resolve', resolveReport);
 
 export default router;

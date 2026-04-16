@@ -72,13 +72,19 @@ model Message {
   @@index([timestamp])
 }
 
+enum ReportStatus {
+  PENDING
+  RESOLVED
+}
+
 model Report {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
   reporterId      String
   reportedUserId  String
   reason          String
   contextMessages Json // Snapshot of last 15 messages for review
-  createdAt       DateTime @default(now())
+  status          ReportStatus @default(PENDING)
+  createdAt       DateTime     @default(now())
 
   reporter     User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)

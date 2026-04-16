@@ -14,6 +14,7 @@ import userRoutes from './routes/user.routes';
 import { errorHandler } from './middlewares/error.middleware';
 import messageRoutes from './routes/message.routes';
 import adminRoutes from './routes/admin.routes';
+import reportRoutes from './routes/report.routes';
 import { prisma } from './utils/db';
 import { initChatSocket } from './sockets/chat.socket';
 
@@ -61,6 +62,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/health', healthRoutes);
 
 // Global Error Handling Middleware

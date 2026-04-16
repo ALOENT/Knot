@@ -7,10 +7,21 @@ export const getUsers = async (req: Request, res: Response, next: NextFunction) 
     const isAdminUser = (req as any).user?.role === 'ADMIN';
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+    const search = req.query.search as string || '';
     const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { username: { contains: search, mode: 'insensitive' } },
+        { displayName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
 
     const [users, totalUsers] = await Promise.all([
       prisma.user.findMany({
+        where,
         skip,
         take: limit,
         select: {
@@ -27,7 +38,7 @@ export const getUsers = async (req: Request, res: Response, next: NextFunction) 
         },
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.user.count()
+      prisma.user.count({ where })
     ]);
 
     const totalAgents = await prisma.user.count({ where: { role: 'ADMIN' } });
@@ -71,7 +82,6 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
 
     const { userId, isBanned, isVerified } = req.body;
 
-    // Build data object dynamically based on provided fields
     const data: any = {};
     if (typeof isBanned !== 'undefined') data.isBanned = isBanned;
     if (typeof isVerified !== 'undefined') data.isVerified = isVerified;
@@ -100,11 +110,55 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
       }
     });
 
-    // If banned, we might invalidate session somehow here, 
-    // but the next API call will fail if the middleware checks for isBanned.
-    // For now, the prompt specifies restricting login, which we did.
-
     res.status(200).json({ success: true, data: updatedUser, message: 'Status updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all reports
+ * @route   GET /api/admin/reports
+ * @access  Private/Admin
+ */
+export const getReports = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const reports = await prisma.report.findMany({
+      include: {
+        reporter: {
+          select: { id: true, username: true, displayName: true, profilePic: true }
+        },
+        reportedUser: {
+          select: { id: true, username: true, displayName: true, profilePic: true }
+        }
+      },
+      orderBy: [
+        { status: 'asc' }, // PENDING first
+        { createdAt: 'desc' }
+      ]
+    });
+
+    res.status(200).json({ success: true, data: reports });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Resolve a report
+ * @route   PUT /api/admin/reports/:id/resolve
+ * @access  Private/Admin
+ */
+export const resolveReport = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    const report = await prisma.report.update({
+      where: { id },
+      data: { status: 'RESOLVED' }
+    });
+
+    res.status(200).json({ success: true, data: report, message: 'Report resolved' });
   } catch (error) {
     next(error);
   }
