@@ -2,10 +2,10 @@
 
 import { motion } from 'framer-motion';
 import {
-  MessageSquareText,
-  Users2,
+  MessageCircle,
+  Hash,
+  Users,
   Search,
-  Settings2,
   Shield,
   UserCircle
 } from 'lucide-react';
@@ -14,8 +14,9 @@ import type { AuthUser } from '@/providers/ChatProvider';
 export type TabType = 'messages' | 'groups' | 'contacts' | 'search' | 'settings';
 
 const navItems: { icon: any; id: TabType; label: string }[] = [
-  { icon: MessageSquareText, id: 'messages', label: 'Chats' },
-  { icon: Users2, id: 'contacts', label: 'Contacts' },
+  { icon: MessageCircle, id: 'messages', label: 'Chats' },
+  { icon: Hash, id: 'groups', label: 'Groups' },
+  { icon: Users, id: 'contacts', label: 'Contacts' },
   { icon: Search, id: 'search', label: 'Search' },
 ];
 
@@ -31,14 +32,14 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
 
   return (
     <>
-      {/* ── Desktop Sidebar — Slim icon rail, w-18 (72px) ── */}
+      {/* ── Desktop Sidebar — Slim icon rail, w-16 (64px) ── */}
       <aside
         className="hidden md:flex flex-col items-center justify-between h-screen glass-sidebar py-5 fixed left-0 top-0 z-40"
         style={{ width: 'var(--sidebar-w)' }}
       >
         {/* Nav tabs */}
-        <div className="flex flex-col items-center gap-1">
-          <nav className="flex flex-col gap-1 w-full px-2">
+        <div className="flex flex-col items-center gap-1 w-full">
+          <nav className="flex flex-col gap-3 w-full px-2">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -50,7 +51,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                   }`}
                   title={item.label}
                 >
-                  <item.icon className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
+                  <item.icon className="h-6 w-6 relative z-[1]" strokeWidth={1.25} />
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
@@ -64,33 +65,17 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
           </nav>
         </div>
 
-        {/* Bottom actions: Admin (if admin) + Settings + Profile avatar */}
-        <div className="flex flex-col items-center gap-2">
+        {/* Bottom actions: Admin (if admin) + Profile avatar */}
+        <div className="flex flex-col items-center gap-4 w-full">
           {isAdmin && onOpenAdmin && (
             <button
               onClick={onOpenAdmin}
               className="btn-icon"
               title="Admin Control Panel"
             >
-              <Shield className="h-6 w-6 text-blue-500" strokeWidth={1.5} />
+              <Shield className="h-6 w-6 text-blue-500" strokeWidth={1.25} />
             </button>
           )}
-          <button
-            className={`btn-icon transition-colors relative w-12 aspect-square flex items-center justify-center rounded-xl ${
-              activeTab === 'settings' ? 'text-blue-500' : 'text-gray-300 hover:text-blue-500'
-            }`}
-            title="Profile & Settings"
-            onClick={() => onChangeTab('settings')}
-          >
-            <Settings2 className="h-6 w-6 relative z-[1]" strokeWidth={1.5} />
-            {activeTab === 'settings' && (
-              <motion.div
-                layoutId="sidebar-active"
-                className="absolute inset-0 rounded-xl bg-blue-500/10 border border-blue-500/20"
-                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-              />
-            )}
-          </button>
 
           {/* Profile avatar / icon at very bottom */}
           <button
@@ -107,7 +92,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                 className="w-full h-full object-cover"
               />
             ) : (
-              <UserCircle className="h-6 w-6 text-gray-500" strokeWidth={1.5} />
+              <UserCircle className="h-6 w-6 text-gray-500" strokeWidth={1.25} />
             )}
           </button>
         </div>
@@ -132,7 +117,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
                 className="relative flex-1 flex flex-col items-center justify-center h-full"
               >
                 <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
-                   <item.icon strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                   <item.icon strokeWidth={1.25} className={`h-6 w-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                 </div>
                 {isActive && (
                   <motion.div
@@ -143,13 +128,22 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               </button>
             );
           })}
-          {/* Settings tab on mobile */}
+          {/* Profile/Settings tab on mobile */}
           <button
+            type="button"
             onClick={() => onChangeTab('settings')}
             className={`relative flex-1 flex flex-col items-center justify-center h-full ${activeTab === 'settings' ? 'text-blue-500' : 'text-gray-500'}`}
+            title={currentUser?.displayName || currentUser?.username || 'Profile'}
+            aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
           >
             <div className="p-2 rounded-xl transition-all duration-300">
-              <Settings2 strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+               {currentUser?.profilePic ? (
+                  <div className={`w-6 h-6 rounded-full overflow-hidden border ${activeTab === 'settings' ? 'border-blue-500' : 'border-transparent'} transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`}>
+                     <img src={currentUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                  </div>
+               ) : (
+                  <UserCircle strokeWidth={1.25} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+               )}
             </div>
             {activeTab === 'settings' && (
               <motion.div

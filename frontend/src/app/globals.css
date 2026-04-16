@@ -14,7 +14,7 @@
     --glass-border: rgba(255, 255, 255, 0.05);
     --glass-border-active: rgba(255, 255, 255, 0.10);
     --glass-highlight: rgba(255, 255, 255, 0.02);
-    --sidebar-w: 72px;
+    --sidebar-w: 64px;
     --chat-list-w: 320px;
   }
 
