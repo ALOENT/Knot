@@ -6,7 +6,7 @@ import {
   Hash,
   Users,
   Search,
-  Shield,
+  ShieldCheck,
   UserCircle
 } from 'lucide-react';
 import type { AuthUser } from '@/providers/ChatProvider';
@@ -73,7 +73,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               className="btn-icon"
               title="Admin Control Panel"
             >
-              <Shield className="h-5 w-5 text-blue-500" strokeWidth={1.25} />
+              <ShieldCheck className="h-6 w-6 text-blue-500" strokeWidth={1.25} />
             </button>
           )}
 

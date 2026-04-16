@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, BadgeCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useSocket } from '@/providers/SocketProvider';
 
@@ -18,6 +18,7 @@ export interface ChatUser {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
+  isVerified?: boolean;
 }
 
 interface ChatListProps {
@@ -143,8 +144,11 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#e5e5e5] truncate">
+                    <span className="text-sm font-medium text-[#e5e5e5] truncate flex items-center">
                       {user.displayName || user.username}
+                      {user.isVerified && (
+                        <BadgeCheck className="w-3.5 h-3.5 text-blue-500 ml-1 shrink-0" />
+                      )}
                     </span>
                     {user.lastMessageTime && (
                       <span className="text-[10px] text-[#444] shrink-0 ml-2">

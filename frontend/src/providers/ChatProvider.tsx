@@ -16,6 +16,8 @@ export interface AuthUser {
   role?: string;
   createdAt?: string;
   isOnline?: boolean;
+  isVerified?: boolean;
+  isBanned?: boolean;
 }
 
 interface ChatContextType {
