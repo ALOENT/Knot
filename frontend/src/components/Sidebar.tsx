@@ -93,9 +93,11 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
           </button>
 
           {/* Profile avatar / icon at very bottom */}
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors"
+          <button
+            type="button"
+            className="w-9 h-9 p-0 bg-transparent rounded-full flex items-center justify-center overflow-hidden cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title={currentUser?.displayName || currentUser?.username || 'Profile'}
+            aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
             onClick={() => onChangeTab('settings')}
           >
             {currentUser?.profilePic ? (
@@ -107,7 +109,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             ) : (
               <UserCircle className="h-6 w-6 text-gray-500" strokeWidth={1.5} />
             )}
-          </div>
+          </button>
         </div>
       </aside>
 

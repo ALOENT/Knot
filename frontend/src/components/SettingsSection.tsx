@@ -19,6 +19,7 @@ export default function SettingsSection() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [privacyModeEnabled, setPrivacyModeEnabled] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<number | null>(null);
 
@@ -47,9 +48,13 @@ export default function SettingsSection() {
           bio: userData.bio || '',
           profilePic: userData.profilePic || '',
         });
+        setFetchError(false);
       })
-      .catch(() => {
-        // Silently fail – form will still show stale context data
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to refresh latest profile:', err);
+          setFetchError(true);
+        }
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,6 +117,12 @@ export default function SettingsSection() {
       <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/1">
         <h2 className="text-2xl font-semibold text-white tracking-tight">Settings</h2>
       </div>
+
+      {fetchError && (
+        <div className="mx-8 mt-4 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm flex items-center gap-2">
+           Could not refresh your latest profile. The data shown below might be outdated.
+        </div>
+      )}
 
       <div className="p-8 max-w-4xl w-full mx-auto space-y-12 pb-20">
         
@@ -252,7 +263,12 @@ export default function SettingsSection() {
                 role="switch"
                 aria-checked={notificationsEnabled}
                 onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setNotificationsEnabled(!notificationsEnabled); }}
+                onKeyDown={(e) => { 
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.key === ' ') e.preventDefault();
+                    setNotificationsEnabled(!notificationsEnabled);
+                  }
+                }}
                 tabIndex={0}
               >
                 <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${notificationsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -275,7 +291,12 @@ export default function SettingsSection() {
                 role="switch"
                 aria-checked={privacyModeEnabled}
                 onClick={() => setPrivacyModeEnabled(!privacyModeEnabled)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPrivacyModeEnabled(!privacyModeEnabled); }}
+                onKeyDown={(e) => { 
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.key === ' ') e.preventDefault();
+                    setPrivacyModeEnabled(!privacyModeEnabled);
+                  }
+                }}
                 tabIndex={0}
               >
                 <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${privacyModeEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
