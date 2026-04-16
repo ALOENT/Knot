@@ -28,9 +28,10 @@ model User {
   isOnline        Boolean   @default(false)
   lastSeen        DateTime?
   role            Role      @default(USER)
+  // System-level verification. UI should display badge only if isVerified AND privacySettings.allowDisplayVerifiedBadge are true.
   isVerified      Boolean   @default(false)
   isBanned        Boolean   @default(false)
-  privacySettings Json?     @default("{\"showBlueTick\": true, \"showTyping\": true}")
+  privacySettings Json?     @default("{\"allowDisplayVerifiedBadge\": true, \"showTyping\": true}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -158,6 +158,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   // ── 2. Handle Setting Active Chat & Fetching DB History ──
   const setActiveChat = useCallback(
     (user: ChatUser | null) => {
+      if (currentUser?.isBanned) {
+        console.warn('Action blocked: user is banned');
+        return;
+      }
+      
       setActiveChatState(user);
       
       if (!user) {
@@ -202,6 +207,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const sendMessage = useCallback(
     (content: string, fileUrl?: string) => {
       if (!socket || !activeChat || !currentUser) return;
+      if (currentUser.isBanned) {
+        console.warn('Action blocked: user is banned');
+        return;
+      }
+      if (!currentUser.isVerified) {
+        console.warn('Action blocked: user is unverified');
+        alert('You must be verified to send messages.');
+        return;
+      }
 
       // Create optimistic message
       const optimisticMsg: Message = {

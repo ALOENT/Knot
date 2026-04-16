@@ -206,7 +206,7 @@ export default function SettingsSection() {
                   <label className="text-sm text-white/60 flex items-center gap-1">
                     Display Name
                     {currentUser?.isVerified && (
-                      <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />
+                      <BadgeCheck className="w-3.5 h-3.5 text-blue-500" role="img" aria-label="Verified user" />
                     )}
                   </label>
                   <input 

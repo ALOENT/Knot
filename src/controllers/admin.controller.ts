@@ -4,30 +4,47 @@ import { z } from 'zod';
 
 export const getUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        displayName: true,
-        profilePic: true,
-        isOnline: true,
-        role: true,
-        isVerified: true,
-        isBanned: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const isAdminUser = (req as any).user?.role === 'ADMIN';
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+    const skip = (page - 1) * limit;
 
-    const totalAgents = users.filter(u => u.role === 'ADMIN').length;
-    const activeConversations = await prisma.message.count(); // Approximation or different logic if needed
-    const bannedEntities = users.filter(u => u.isBanned).length;
+    const [users, totalUsers] = await Promise.all([
+      prisma.user.findMany({
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          email: isAdminUser,
+          username: true,
+          displayName: true,
+          profilePic: true,
+          isOnline: true,
+          role: true,
+          isVerified: true,
+          isBanned: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.user.count()
+    ]);
+
+    const totalAgents = await prisma.user.count({ where: { role: 'ADMIN' } });
+    const conversations = await prisma.message.groupBy({ by: ['senderId', 'receiverId'] });
+    const activeConversations = conversations.length;
+    const bannedEntities = await prisma.user.count({ where: { isBanned: true } });
 
     res.status(200).json({
       success: true,
       data: {
         users,
+        pagination: {
+          total: totalUsers,
+          page,
+          limit,
+          totalPages: Math.ceil(totalUsers / limit)
+        },
         stats: {
           totalAgents,
           activeConversations,
@@ -63,12 +80,13 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
       return res.status(400).json({ success: false, message: 'Nothing to update' });
     }
 
-    // You cannot ban an ADMIN (safety mechanism)
-    if (data.isBanned) {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (user && user.role === 'ADMIN') {
-            return res.status(403).json({ success: false, message: 'Cannot ban an admin' });
-        }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (data.isBanned && user.role === 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Cannot ban an admin' });
     }
 
     const updatedUser = await prisma.user.update({
