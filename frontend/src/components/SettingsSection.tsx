@@ -17,8 +17,28 @@ export default function SettingsSection() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('knot_notifications');
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
+
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('knot_privacy');
+      return saved !== null ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('knot_notifications', JSON.stringify(notificationsEnabled));
+      localStorage.setItem('knot_privacy', JSON.stringify(privacyModeEnabled));
+    }
+  }, [notificationsEnabled, privacyModeEnabled]);
   const [fetchError, setFetchError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<number | null>(null);

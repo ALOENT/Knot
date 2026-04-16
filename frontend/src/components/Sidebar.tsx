@@ -139,7 +139,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             <div className="p-2 rounded-xl transition-all duration-300">
                {currentUser?.profilePic ? (
                   <div className={`w-6 h-6 rounded-full overflow-hidden border ${activeTab === 'settings' ? 'border-blue-500' : 'border-transparent'} transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`}>
-                     <img src={currentUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                     <img src={currentUser.profilePic} alt={currentUser.displayName || currentUser.username || 'Profile'} className="w-full h-full object-cover" />
                   </div>
                ) : (
                   <UserCircle strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
