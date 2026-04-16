@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, Users, Activity, Ban, CheckCircle, XCircle, 
@@ -48,6 +48,22 @@ interface AdminPanelProps {
   onClose: () => void;
 }
 
+// Static class mapping for Tailwind JIT compatibility
+const STAT_COLORS = {
+  indigo: {
+    card: 'bg-indigo-600/5 border-indigo-500/10',
+    iconWrapper: 'bg-indigo-500/10 text-indigo-400',
+  },
+  blue: {
+    card: 'bg-blue-600/5 border-blue-500/10',
+    iconWrapper: 'bg-blue-500/10 text-blue-400',
+  },
+  red: {
+    card: 'bg-red-600/5 border-red-500/10',
+    iconWrapper: 'bg-red-500/10 text-red-400',
+  }
+};
+
 export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'reports'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -56,30 +72,21 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState<Record<string, boolean>>({});
+  const [resolvingReports, setResolvingReports] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  
+  const lastFetchAtRef = useRef<number>(0);
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isOpen && activeTab === 'users') {
-        fetchUsers();
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm, isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (activeTab === 'users') fetchUsers();
-      else fetchReports();
-    }
-  }, [isOpen, activeTab]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async (isSearch = false) => {
+    const now = Date.now();
+    // Guard: Prevent duplicate calls if they are within 100ms (useful for opening panel + initial search)
+    if (!isSearch && now - lastFetchAtRef.current < 100) return;
+    
     try {
       setIsLoading(true);
       setFetchError(null);
+      lastFetchAtRef.current = now;
       const res = await api.get(`/admin/users?search=${encodeURIComponent(searchTerm)}`);
       if (res.data.success) {
         setUsers(res.data.data.users);
@@ -90,12 +97,16 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchTerm]);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFetchAtRef.current < 100) return;
+
     try {
       setIsLoading(true);
       setFetchError(null);
+      lastFetchAtRef.current = now;
       const res = await api.get('/admin/reports');
       if (res.data.success) {
         setReports(res.data.data);
@@ -105,7 +116,25 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'users') return;
+    
+    const timer = setTimeout(() => {
+      fetchUsers(true);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm, isOpen, activeTab, fetchUsers]);
+
+  // Initial load or tab switch
+  useEffect(() => {
+    if (isOpen) {
+      if (activeTab === 'users') fetchUsers();
+      else fetchReports();
+    }
+  }, [isOpen, activeTab, fetchUsers, fetchReports]);
 
   const hasPendingReports = useMemo(() => reports.some(r => r.status === 'PENDING'), [reports]);
 
@@ -114,21 +143,19 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     
     try {
       setLoadingUsers(prev => ({ ...prev, [userId]: true }));
-      // Optimistic update for instant feedback
       setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updates } : u)));
       
       const res = await api.put('/admin/update-status', { userId, ...updates });
       
       if (res.data.success) {
-        // Sync with server response to ensure accuracy
         const updatedUser = res.data.data;
         setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updatedUser } : u)));
       } else {
-        fetchUsers(); // Rollback
+        fetchUsers(true);
         setFetchError(res.data.message || 'Update failed');
       }
     } catch (error) {
-      fetchUsers(); // Rollback
+      fetchUsers(true);
       setFetchError('Update failed');
     } finally {
       setLoadingUsers(prev => ({ ...prev, [userId]: false }));
@@ -136,7 +163,10 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   };
 
   const handleResolveReport = async (reportId: string) => {
+    if (resolvingReports[reportId]) return;
+
     try {
+      setResolvingReports(prev => ({ ...prev, [reportId]: true }));
       const res = await api.put(`/admin/reports/${reportId}/resolve`);
       if (res.data.success) {
         setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'RESOLVED' } : r));
@@ -146,6 +176,8 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       }
     } catch (error) {
       setFetchError('Failed to resolve report');
+    } finally {
+      setResolvingReports(prev => ({ ...prev, [reportId]: false }));
     }
   };
 
@@ -165,35 +197,39 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               <h2 className="text-2xl font-semibold tracking-tight">Command Center</h2>
             </div>
 
-            {/* Premium Tab System */}
+            {/* Tab System */}
             <div className="flex bg-white/5 p-1 rounded-xl gap-1">
-              {[
-                { id: 'users', label: 'Users', icon: Users },
-                { id: 'reports', label: 'Reports', icon: Flag, badge: hasPendingReports }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === tab.id ? 'text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {activeTab === tab.id && (
-                    <motion.div
-                      layoutId="tab-bg"
-                      className="absolute inset-0 bg-indigo-600 rounded-lg"
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-2">
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                    {tab.badge && (
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse border border-[#0a0a0c]" />
+              {(['users', 'reports'] as const).map((tabId) => {
+                const isUsers = tabId === 'users';
+                const Icon = isUsers ? Users : Flag;
+                const label = isUsers ? 'Users' : 'Reports';
+                const badge = !isUsers && hasPendingReports;
+
+                return (
+                  <button
+                    key={tabId}
+                    onClick={() => setActiveTab(tabId)}
+                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === tabId ? 'text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {activeTab === tabId && (
+                      <motion.div
+                        layoutId="tab-bg"
+                        className="absolute inset-0 bg-indigo-600 rounded-lg"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
                     )}
-                  </span>
-                </button>
-              ))}
+                    <span className="relative z-10 flex items-center gap-2">
+                      <Icon className="w-4 h-4" />
+                      {label}
+                      {badge && (
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse border border-[#0a0a0c]" />
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 transition-colors">
@@ -205,20 +241,23 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: 'Total Agents', value: stats.totalAgents, icon: ShieldCheck, color: 'indigo' },
-                { label: 'Active Chats', value: stats.activeConversations, icon: Activity, color: 'blue' },
-                { label: 'Banned Entities', value: stats.bannedEntities, icon: Ban, color: 'red' }
-              ].map((stat, i) => (
-                <div key={i} className={`bg-${stat.color}-600/5 border border-${stat.color}-500/10 rounded-2xl p-6 flex items-center gap-4`}>
-                  <div className={`p-3 bg-${stat.color}-500/10 rounded-xl text-${stat.color}-400`}>
-                    <stat.icon className="w-6 h-6" />
+                { label: 'Total Agents', value: stats.totalAgents, icon: ShieldCheck, color: 'indigo' as const },
+                { label: 'Active Chats', value: stats.activeConversations, icon: Activity, color: 'blue' as const },
+                { label: 'Banned Entities', value: stats.bannedEntities, icon: Ban, color: 'red' as const }
+              ].map((stat, i) => {
+                const theme = STAT_COLORS[stat.color];
+                return (
+                  <div key={i} className={`${theme.card} border rounded-2xl p-6 flex items-center gap-4`}>
+                    <div className={`p-3 ${theme.iconWrapper} rounded-xl`}>
+                      <stat.icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-                    <p className="text-2xl font-bold">{stat.value}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {fetchError && (
@@ -270,7 +309,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center overflow-hidden border border-white/10">
                                     {user.profilePic ? (
-                                      <img src={user.profilePic} className="w-full h-full object-cover" />
+                                      <img 
+                                        src={user.profilePic} 
+                                        alt={user.displayName || user.username || 'User profile'} 
+                                        className="w-full h-full object-cover" 
+                                      />
                                     ) : (
                                       <span className="text-gray-500 font-bold uppercase">{user.username[0]}</span>
                                     )}
@@ -303,7 +346,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                                 )}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => handleUpdateStatus(user.id, { isVerified: !user.isVerified })}
                                     className={`p-2 rounded-lg border transition-colors ${
@@ -390,9 +433,10 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                                 {report.status === 'PENDING' && (
                                   <button 
                                     onClick={() => handleResolveReport(report.id)}
-                                    className="px-4 py-2 bg-green-600/10 border border-green-500/20 text-green-400 rounded-lg text-xs font-bold hover:bg-green-600/20 transition-all"
+                                    disabled={resolvingReports[report.id]}
+                                    className="px-4 py-2 bg-green-600/10 border border-green-500/20 text-green-400 rounded-lg text-xs font-bold hover:bg-green-600/20 transition-all disabled:opacity-50"
                                   >
-                                    RESOLVE
+                                    {resolvingReports[report.id] ? '...' : 'RESOLVE'}
                                   </button>
                                 )}
                               </div>

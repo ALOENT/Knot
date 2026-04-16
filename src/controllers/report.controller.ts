@@ -16,8 +16,14 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    if (!reportedUserId || !reason) {
-      return res.status(400).json({ success: false, message: 'Reported user ID and reason are required' });
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+
+    if (!reportedUserId || !trimmedReason) {
+      return res.status(400).json({ success: false, message: 'Reported user ID and non-empty reason are required' });
+    }
+
+    if (trimmedReason.length > 500) {
+      return res.status(400).json({ success: false, message: 'Reason cannot exceed 500 characters' });
     }
 
     // Prevent reporting self
@@ -54,7 +60,7 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       data: {
         reporterId,
         reportedUserId,
-        reason,
+        reason: trimmedReason,
         contextMessages: contextMessages, // Snapshot
       },
     });

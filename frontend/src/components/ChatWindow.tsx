@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
+import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
 import dynamic from 'next/dynamic';
 
@@ -90,12 +91,14 @@ export default function ChatWindow({
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { onlineUsers, typingUsers, emitStartTyping, emitStopTyping } = useSocket();
 
   // Reporting State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const isOnline = activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false;
   const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
@@ -108,14 +111,17 @@ export default function ChatWindow({
         reportedUserId: activeUser.id,
         reason: reportReason
       });
+      
       if (res.data.success) {
         setIsReportModalOpen(false);
         setReportReason('');
         alert('User has been reported. Admins will review the context.');
+      } else {
+        alert(res.data.message || 'Failed to submit report. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to report user', error);
-      alert('Failed to submit report. Please try again.');
+      alert(error.response?.data?.message || 'Failed to submit report. Please try again.');
     } finally {
       setIsSubmittingReport(false);
     }
@@ -138,21 +144,33 @@ export default function ChatWindow({
     };
   }, [activeUser, emitStopTyping]);
 
-  // Close emoji picker when clicking outside
+  // Close emoji picker and menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        emojiPickerRef.current &&
-        !emojiPickerRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(target)) {
+        setShowEmojiPicker(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle Escape to close menus
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMenuOpen(false);
         setShowEmojiPicker(false);
       }
     };
-    if (showEmojiPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showEmojiPicker]);
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
 
   // Handle typing indicator emission
   const handleInputChange = useCallback(
@@ -316,21 +334,48 @@ export default function ChatWindow({
           </div>
         </div>
 
-        {/* Actions — Calls removed, only more options */}
-        <div className="flex items-center gap-0.5 relative group/menu">
-          <motion.button aria-label="More options" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} className="btn-icon h-8 w-8">
+        {/* Options Dropdown */}
+        <div className="relative" ref={menuRef}>
+          <motion.button 
+            aria-label="More options" 
+            aria-haspopup="true"
+            aria-expanded={isMenuOpen}
+            whileHover={{ scale: 1.08 }} 
+            whileTap={{ scale: 0.92 }} 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsMenuOpen(!isMenuOpen);
+              }
+            }}
+            className={`btn-icon h-8 w-8 ${isMenuOpen ? 'bg-white/5' : ''}`}
+          >
             <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </motion.button>
           
-          <div className="absolute top-full right-0 mt-2 w-36 py-1 bg-[#0f0f12] border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-50">
-             <button 
-                onClick={() => setIsReportModalOpen(true)}
-                className="w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div 
+                initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                className="absolute top-full right-0 mt-2 w-36 py-1 bg-[#0f0f12] border border-white/10 rounded-xl shadow-2xl z-50"
               >
-               <Flag className="w-3.5 h-3.5" />
-               Report User
-             </button>
-          </div>
+                 <button 
+                    onClick={() => {
+                      setIsReportModalOpen(true);
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 focus:outline-none focus:bg-red-500/10"
+                    autoFocus
+                  >
+                   <Flag className="w-3.5 h-3.5" />
+                   Report User
+                 </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -456,11 +501,6 @@ export default function ChatWindow({
                       ? 'bg-blue-600/20 text-blue-100 border border-blue-500/30 rounded-br-sm'
                       : 'bg-[#1a1a1f] text-gray-200 border border-white/5 rounded-bl-sm'
                   }`}
-                  style={
-                    !isMine
-                      ? undefined
-                      : undefined
-                  }
                 >
                   {msg.content && (
                     <p style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>

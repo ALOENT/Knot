@@ -151,10 +151,22 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
  */
 export const resolveReport = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid report ID format' });
+    }
+
+    // Check if report exists
+    const existingReport = await prisma.report.findUnique({ where: { id } });
+    if (!existingReport) {
+      return res.status(404).json({ success: false, message: 'Report not found' });
+    }
 
     const report = await prisma.report.update({
-      where: { id: id as string },
+      where: { id },
       data: { status: 'RESOLVED' }
     });
 
