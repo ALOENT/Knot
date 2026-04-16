@@ -68,17 +68,16 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.98 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-        className="fixed inset-0 z-50 flex flex-col bg-(--background) text-white overflow-hidden"
-      >
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+          className="fixed inset-0 z-50 flex flex-col bg-(--background) text-white overflow-hidden"
+        >
         {/* Header */}
         <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/1 shrink-0">
           <div className="flex items-center gap-3">
@@ -239,7 +238,8 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             </div>
           </div>
         </div>
-      </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
