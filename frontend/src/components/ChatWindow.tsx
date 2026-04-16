@@ -237,12 +237,12 @@ export default function ChatWindow({
               {activeUser.profilePic ? (
                 <img
                   src={activeUser.profilePic}
-                  alt={(activeUser as any).displayName || activeUser.username}
+                  alt={activeUser.displayName || activeUser.username}
                   className="h-full w-full rounded-full object-cover"
                 />
               ) : (
                 <span className="text-xs font-medium text-[#888]">
-                  {((activeUser as any).displayName || activeUser.username).charAt(0).toUpperCase()}
+                  {(activeUser.displayName || activeUser.username).charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
@@ -256,7 +256,7 @@ export default function ChatWindow({
 
           <div>
             <h3 className="text-sm font-medium text-white leading-tight">
-              {(activeUser as any).displayName || activeUser.username}
+              {activeUser.displayName || activeUser.username}
             </h3>
             <AnimatePresence mode="wait">
               {isTyping ? (
