@@ -228,6 +228,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         sender: {
           id: currentUser.id,
           username: currentUser.username,
+          isVerified: currentUser.isVerified,
         },
       };
 

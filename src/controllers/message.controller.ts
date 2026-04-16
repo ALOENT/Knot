@@ -53,6 +53,7 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
             username: true,
             displayName: true,
             profilePic: true,
+            isVerified: true,
           },
         },
       },
@@ -104,6 +105,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
         displayName: true,
         profilePic: true,
         isOnline: true,
+        isVerified: true,
       },
     });
 

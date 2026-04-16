@@ -41,6 +41,7 @@ export const searchUsers = async (req: Request, res: Response) => {
         isOnline: true,
         lastSeen: true,
         bio: true,
+        isVerified: true,
       },
       take: 20
     });
@@ -89,6 +90,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         profilePic: true,
         isOnline: true,
         lastSeen: true,
+        isVerified: true,
       },
       orderBy: {
         id: 'asc'
@@ -168,6 +170,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         bio: true,
         isOnline: true,
         role: true,
+        isVerified: true,
         privacySettings: true
       }
     });

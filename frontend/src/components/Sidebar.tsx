@@ -77,24 +77,32 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             </button>
           )}
 
-          {/* Profile avatar / icon at very bottom */}
-          <button
-            type="button"
-            className="w-9 h-9 p-0 bg-transparent rounded-full flex items-center justify-center overflow-hidden cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-            title={currentUser?.displayName || currentUser?.username || 'Profile'}
-            aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
-            onClick={() => onChangeTab('settings')}
-          >
-            {currentUser?.profilePic ? (
-              <img
-                src={currentUser.profilePic}
-                alt={currentUser.displayName || currentUser.username}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <UserCircle className="h-5 w-5 text-gray-500" strokeWidth={1.25} />
+          {/* Profile avatar / icon at very bottom with verification badge */}
+          <div className="relative">
+            <button
+              type="button"
+              className="w-9 h-9 p-0 bg-transparent rounded-full flex items-center justify-center overflow-hidden cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              title={currentUser?.displayName || currentUser?.username || 'Profile'}
+              aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
+              onClick={() => onChangeTab('settings')}
+            >
+              {currentUser?.profilePic ? (
+                <img
+                  src={currentUser.profilePic}
+                  alt={currentUser.displayName || currentUser.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <UserCircle className="h-5 w-5 text-gray-500" strokeWidth={1.25} />
+              )}
+            </button>
+            
+            {currentUser?.isVerified && (
+              <div className="absolute -bottom-1 -right-1 bg-[#0a0a0c] rounded-full p-0.5" title="Verified Account">
+                <ShieldCheck className="w-4 h-4 text-blue-500 fill-blue-500/20" strokeWidth={1.5} />
+              </div>
             )}
-          </button>
+          </div>
         </div>
       </aside>
 
