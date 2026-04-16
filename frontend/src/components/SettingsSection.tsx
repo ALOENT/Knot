@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, Shield, Bell, EyeOff, LogOut, CheckCircle } from 'lucide-react';
+import { Camera, User, Shield, Bell, EyeOff, LogOut, CheckCircle, BadgeCheck } from 'lucide-react';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
 
@@ -203,7 +203,12 @@ export default function SettingsSection() {
             <div className="flex-1 space-y-4 w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm text-white/60">Display Name</label>
+                  <label className="text-sm text-white/60 flex items-center gap-1">
+                    Display Name
+                    {currentUser?.isVerified && (
+                      <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />
+                    )}
+                  </label>
                   <input 
                     name="displayName"
                     value={formData.displayName}

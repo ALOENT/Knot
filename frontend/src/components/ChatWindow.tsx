@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import type { ChatUser } from '@/components/ChatList';
 import dynamic from 'next/dynamic';
@@ -255,8 +255,11 @@ export default function ChatWindow({
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-white leading-tight">
+            <h3 className="text-sm font-medium text-white leading-tight flex items-center">
               {activeUser.displayName || activeUser.username}
+              {activeUser.isVerified && (
+                <BadgeCheck className="w-3.5 h-3.5 text-blue-500 ml-1 shrink-0" />
+              )}
             </h3>
             <AnimatePresence mode="wait">
               {isTyping ? (
