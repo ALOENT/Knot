@@ -114,14 +114,12 @@ export default function DashboardPage() {
   // ── Handlers ──
   const handleSelectChat = useCallback((user: ChatUser) => {
     setActiveChat(user);
-    if (isMobile) {
-      setShowRightPanel(true);
-    }
+    setShowRightPanel(true);
     // Reset unread count for this chat
     setChatUsers((prev) =>
       prev.map((u) => (u.id === user.id ? { ...u, unreadCount: 0 } : u)),
     );
-  }, [setActiveChat, isMobile]);
+  }, [setActiveChat]);
 
   const handleMessageSearchedUser = useCallback((user: SearchResult) => {
     // Switch back to messages tab and make them active
@@ -274,7 +272,7 @@ export default function DashboardPage() {
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className={`absolute inset-0 md:relative md:inset-auto flex-1 h-full z-20 md:z-auto bg-[#0a0a0c] ${
-              !showRightPanel ? 'md:invisible' : 'visible'
+              (!showRightPanel && isMobile) ? 'md:invisible' : 'visible'
             }`}
           >
             <AnimatePresence mode="wait">
