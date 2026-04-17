@@ -244,7 +244,7 @@ export default function DashboardPage() {
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className={`absolute inset-0 md:relative md:inset-auto h-full shrink-0 z-10 w-full md:w-[var(--chat-list-w)] ${
-              showRightPanel ? 'invisible md:visible' : 'visible'
+              showRightPanel ? (isMobile ? 'pointer-events-none' : 'invisible md:visible') : 'visible'
             }`}
             style={{
               background: '#0a0a0c',
@@ -274,7 +274,7 @@ export default function DashboardPage() {
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className={`absolute inset-0 md:relative md:inset-auto flex-1 h-full z-20 md:z-auto bg-[#0a0a0c] ${
-              !showRightPanel ? 'invisible md:visible' : 'visible'
+              !showRightPanel ? 'md:invisible' : 'visible'
             }`}
           >
             <AnimatePresence mode="wait">
