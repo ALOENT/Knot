@@ -26,6 +26,15 @@ export default function DashboardPage() {
   
   // Responsive view state
   const [showRightPanel, setShowRightPanel] = useState(false); // For mobile
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Handle mobile detection to avoid hydration mismatch
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile(); // Initial check
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // ── Fetch chat users (conversations with last message, or fallback to all users) ──
   useEffect(() => {
@@ -105,12 +114,14 @@ export default function DashboardPage() {
   // ── Handlers ──
   const handleSelectChat = useCallback((user: ChatUser) => {
     setActiveChat(user);
-    setShowRightPanel(true);
+    if (isMobile) {
+      setShowRightPanel(true);
+    }
     // Reset unread count for this chat
     setChatUsers((prev) =>
       prev.map((u) => (u.id === user.id ? { ...u, unreadCount: 0 } : u)),
     );
-  }, [setActiveChat]);
+  }, [setActiveChat, isMobile]);
 
   const handleMessageSearchedUser = useCallback((user: SearchResult) => {
     // Switch back to messages tab and make them active
@@ -228,8 +239,8 @@ export default function DashboardPage() {
           <motion.div
             initial={false}
             animate={{ 
-              x: (showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? '-100%' : 0,
-              opacity: (showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? 0 : 1
+              x: (showRightPanel && isMobile) ? '-100%' : 0,
+              opacity: (showRightPanel && isMobile) ? 0 : 1
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className={`absolute inset-0 md:relative md:inset-auto h-full shrink-0 z-10 w-full md:w-[var(--chat-list-w)] ${
@@ -258,8 +269,8 @@ export default function DashboardPage() {
           <motion.div
             initial={false}
             animate={{ 
-              x: (!showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? '100%' : 0,
-              opacity: (!showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? 0 : 1
+              x: (!showRightPanel && isMobile) ? '100%' : 0,
+              opacity: (!showRightPanel && isMobile) ? 0 : 1
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className={`absolute inset-0 md:relative md:inset-auto flex-1 h-full z-20 md:z-auto bg-[#0a0a0c] ${
