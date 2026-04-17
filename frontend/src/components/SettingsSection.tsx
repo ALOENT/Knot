@@ -146,9 +146,7 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
             onClick={onBack}
             className="md:hidden flex items-center justify-center h-10 w-10 -ml-2 text-gray-400 hover:text-white transition-colors"
           >
-            <Camera className="h-5 w-5 rotate-90" style={{ transform: 'rotate(90deg)' }} /> 
-            {/* Using a generic ArrowLeft would be better, but camera was already imported. Re-importing ArrowLeft */}
-            <LogOut className="h-5 w-5 rotate-180" />
+            <ArrowLeft className="h-5 w-5" />
           </motion.button>
         )}
         <h2 className="text-lg md:text-2xl font-bold text-white tracking-tight ml-2 md:ml-0">Settings</h2>
