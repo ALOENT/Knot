@@ -77,7 +77,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
       </div>
 
       {/* ── Chat items ── */}
-      <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-2 pb-20 md:pb-4 space-y-1">
         <AnimatePresence mode="popLayout">
           {filtered.map((user) => {
             const isActive = user.id === activeChatId;
@@ -88,8 +88,8 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
               <motion.div
                 key={user.id}
                 layout
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 role="button"
@@ -102,15 +102,19 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                   }
                 }}
                 onClick={() => onSelectChat(user)}
-                className={`chat-item flex items-center gap-3 ${isActive ? 'active' : ''}`}
+                className={`chat-item group flex items-center gap-4 py-3.5 px-3 rounded-2xl cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
+                  isActive ? 'bg-blue-600/10 border-blue-500/20' : 'hover:bg-white/5 border-transparent'
+                } border`}
               >
                 {/* Avatar */}
                 <div className="relative shrink-0">
                   <div
-                    className="h-9 w-9 rounded-full flex items-center justify-center"
+                    className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                      isActive ? 'rotate-3 scale-110 shadow-lg shadow-blue-500/10' : ''
+                    }`}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
                     }}
                   >
                     {user.profilePic && !imageErrors[user.id] ? (
@@ -120,59 +124,61 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                         onError={() =>
                           setImageErrors((prev) => ({ ...prev, [user.id]: true }))
                         }
-                        className="h-full w-full rounded-full object-cover"
+                        className="h-full w-full rounded-2xl object-cover"
                       />
                     ) : (
-                      <span className="text-xs font-medium text-[#888]">
+                      <span className="text-sm font-bold text-gray-500">
                         {(user.displayName || user.username).charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
                   {/* Status dot */}
                   <div
-                    className={`absolute bottom-0 right-0 status-dot ${
-                      isOnline ? 'online' : 'offline'
-                    }`}
+                    className={`absolute -bottom-0.5 -right-0.5 status-dot ${isOnline ? 'online' : 'offline'}`}
                     style={{
-                      width: 8,
-                      height: 8,
-                      border: '1.5px solid #0a0a0a',
+                      width: 10,
+                      height: 10,
+                      border: '2px solid #0a0a0c',
                     }}
                   />
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#e5e5e5] flex items-center min-w-0">
+                <div className="flex-1 min-w-0 py-0.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[15px] font-semibold text-gray-100 flex items-center min-w-0">
                       <span className="truncate">{user.displayName || user.username}</span>
                       {user.isVerified && (
-                        <BadgeCheck className="w-3.5 h-3.5 text-blue-500 ml-1 shrink-0" role="img" aria-label="Verified user" />
+                        <BadgeCheck className="w-4 h-4 text-blue-500 ml-1.5 shrink-0" role="img" aria-label="Verified user" />
                       )}
                     </span>
                     {user.lastMessageTime && (
-                      <span className="text-[10px] text-[#444] shrink-0 ml-2">
+                      <span className="text-[11px] text-gray-500 shrink-0 ml-2 font-medium">
                         {user.lastMessageTime}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center justify-between mt-0.5">
+                  <div className="flex items-center justify-between">
                     {isTyping ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <div className="typing-dots">
                           <span /><span /><span />
                         </div>
-                        <span className="text-[11px] text-[#818cf8]">typing</span>
+                        <span className="text-[11px] text-indigo-400 font-medium">typing</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-[#555] truncate">
+                      <span className="text-[13px] text-gray-400/80 truncate leading-relaxed">
                         {user.lastMessage || 'Start a conversation'}
                       </span>
                     )}
                     {(user.unreadCount ?? 0) > 0 && (
-                      <span className="shrink-0 ml-2 flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[9px] font-semibold text-white bg-[#6366f1]">
+                      <motion.span 
+                        initial={{ scale: 0.5 }}
+                        animate={{ scale: 1 }}
+                        className="shrink-0 ml-2 flex items-center justify-center h-4.5 min-w-[18px] px-1 bg-blue-600 rounded-full text-[10px] font-bold text-white shadow-lg shadow-blue-600/20"
+                      >
                         {user.unreadCount! > 99 ? '99+' : user.unreadCount}
-                      </span>
+                      </motion.span>
                     )}
                   </div>
                 </div>

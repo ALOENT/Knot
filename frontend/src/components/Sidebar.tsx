@@ -108,24 +108,23 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
 
       {/* ── Mobile Bottom Tab Bar ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-md bg-black/60 border-t border-white/5"
         style={{
-          background: 'rgba(10, 10, 12, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          height: 'calc(68px + env(safe-area-inset-bottom))',
         }}
       >
-        <div className="flex items-center justify-around h-[68px] px-2 pb-safe">
+        <div className="flex items-center justify-around h-[68px] px-2">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => onChangeTab(item.id)}
-                className="relative flex-1 flex flex-col items-center justify-center h-full"
+                className="relative flex-1 flex flex-col items-center justify-center h-full min-h-[44px]"
               >
-                <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
-                   <item.icon strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                <div className={`p-2.5 rounded-xl transition-all duration-300 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
+                   <item.icon strokeWidth={1.5} className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                 </div>
                 {isActive && (
                   <motion.div
@@ -136,25 +135,39 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               </button>
             );
           })}
+
+          {/* Admin tab on mobile - Only for admins */}
+          {isAdmin && onOpenAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="relative flex-1 flex flex-col items-center justify-center h-full min-h-[44px] text-indigo-400"
+            >
+              <div className="p-2.5 rounded-xl">
+                 <ShieldCheck strokeWidth={1.5} className="h-5 w-5" />
+              </div>
+            </button>
+          )}
+
           {/* Profile/Settings tab on mobile */}
           <button
             type="button"
             onClick={() => onChangeTab('settings')}
-            className={`relative flex-1 flex flex-col items-center justify-center h-full ${activeTab === 'settings' ? 'text-blue-500' : 'text-gray-500'}`}
+            className={`relative flex-1 flex flex-col items-center justify-center h-full min-h-[44px] ${activeTab === 'settings' ? 'text-blue-500' : 'text-gray-500'}`}
             title={currentUser?.displayName || currentUser?.username || 'Profile'}
             aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
           >
-            <div className="p-2 rounded-xl transition-all duration-300 relative">
+            <div className="p-2.5 rounded-xl transition-all duration-300 relative">
                {currentUser?.profilePic ? (
-                  <div className={`w-6 h-6 rounded-full overflow-hidden border ${activeTab === 'settings' ? 'border-blue-500' : 'border-transparent'} transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`}>
+                  <div className={`w-7 h-7 rounded-full overflow-hidden border ${activeTab === 'settings' ? 'border-blue-500' : 'border-transparent'} transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`}>
                      <img src={currentUser.profilePic} alt={currentUser.displayName || currentUser.username || 'User avatar'} className="w-full h-full object-cover" />
                   </div>
                ) : (
-                  <UserCircle strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+                  <UserCircle strokeWidth={1.5} className={`h-6 w-6 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
                )}
 
                {currentUser?.isVerified && (
-                 <div className="absolute bottom-1 right-1 bg-[#0a0a0c] rounded-full p-0.5" title="Verified Account">
+                 <div className="absolute bottom-1.5 right-1.5 bg-[#0a0a0c] rounded-full p-0.5" title="Verified Account">
                    <ShieldCheck className="w-2.5 h-2.5 text-blue-500 fill-blue-500/20" strokeWidth={1.5} />
                  </div>
                )}

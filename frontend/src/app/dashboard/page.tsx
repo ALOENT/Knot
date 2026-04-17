@@ -205,8 +205,8 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-full w-full">
-      {/* ── Sidebar ── */}
+    <div className="fixed inset-0 h-[100dvh] w-full overflow-hidden flex flex-col md:flex-row bg-[#0a0a0c]">
+      {/* ── Sidebar (Desktop: Left, Mobile: Bottom) ── */}
       <Sidebar 
         activeTab={activeTab} 
         onChangeTab={handleTabChange} 
@@ -220,70 +220,87 @@ export default function DashboardPage() {
         onClose={() => setIsAdminOpen(false)}
       />
 
-      {/* ── Main Layout Wrapper ── */}
-      <div className="flex flex-1 h-full md:pl-(--sidebar-w)">
-        
-        {/* ── Left Content Pane (List/Search) ── */}
-        <div
-          className={`h-full shrink-0 relative z-10 ${showRightPanel ? 'hidden md:block' : 'block w-full md:w-(--chat-list-w)'}`}
-          style={{
-            background: '#0a0a0c',
-            borderRight: '1px solid rgba(255, 255, 255, 0.04)',
-          }}
-        >
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              transition={{ duration: 0.2 }}
-              className="h-full w-full"
-            >
-              {renderLeftPanel()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 h-full relative overflow-hidden md:pl-[var(--sidebar-w)] pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0">
+        <div className="flex h-full w-full relative">
+          
+          {/* ── Left Content Pane (List/Search) ── */}
+          <motion.div
+            initial={false}
+            animate={{ 
+              x: (showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? '-100%' : 0,
+              opacity: (showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? 0 : 1
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className={`absolute inset-0 md:relative md:inset-auto h-full shrink-0 z-10 w-full md:w-[var(--chat-list-w)] ${
+              showRightPanel ? 'invisible md:visible' : 'visible'
+            }`}
+            style={{
+              background: '#0a0a0c',
+              borderRight: '1px solid rgba(255, 255, 255, 0.04)',
+            }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="h-full w-full"
+              >
+                {renderLeftPanel()}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
 
-        {/* ── Right Content Pane (Chat Window) ── */}
-        <div
-          className={`flex-1 h-full relative min-w-0 ${!showRightPanel ? 'hidden md:block' : 'block w-full'}`}
-          style={{ background: '#0a0a0c' }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab === 'settings' ? 'settings' : activeChat?.id ?? 'empty'}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="h-full w-full"
-            >
-              {activeTab === 'settings' ? (
-                <SettingsSection />
-              ) : activeChat && currentUser ? (
-                <ChatWindow
-                  activeUser={activeChat}
-                  messages={messages}
-                  currentUserId={currentUser.id}
-                  onSendMessage={handleSendMessage}
-                  onBack={handleBack}
-                  isLoadingMessages={isLoadingMessages}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                  <div className="w-16 h-16 rounded-3xl bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center">
-                    <span className="text-3xl">👋</span>
+          {/* ── Right Content Pane (Chat Window / Settings) ── */}
+          <motion.div
+            initial={false}
+            animate={{ 
+              x: (!showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? '100%' : 0,
+              opacity: (!showRightPanel && typeof window !== 'undefined' && window.innerWidth < 768) ? 0 : 1
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className={`absolute inset-0 md:relative md:inset-auto flex-1 h-full z-20 md:z-auto bg-[#0a0a0c] ${
+              !showRightPanel ? 'invisible md:visible' : 'visible'
+            }`}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab === 'settings' ? 'settings' : activeChat?.id ?? 'empty'}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="h-full w-full"
+              >
+                {activeTab === 'settings' ? (
+                  <SettingsSection />
+                ) : activeChat && currentUser ? (
+                  <ChatWindow
+                    activeUser={activeChat}
+                    messages={messages}
+                    currentUserId={currentUser.id}
+                    onSendMessage={handleSendMessage}
+                    onBack={handleBack}
+                    isLoadingMessages={isLoadingMessages}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4 px-6">
+                    <div className="w-16 h-16 rounded-3xl bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center">
+                      <span className="text-3xl">👋</span>
+                    </div>
+                    <p className="text-lg font-medium text-gray-300">Select a conversation</p>
+                    <p className="text-sm">Or use Search to find new people</p>
                   </div>
-                  <p className="text-lg font-medium text-gray-300">Select a conversation</p>
-                  <p className="text-sm">Or use Search to find new people</p>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
 
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
