@@ -582,7 +582,7 @@ export default function ChatWindow({
               boxShadow: input.trim() ? '0 4px 12px rgba(37, 99, 235, 0.3)' : 'none'
             }}
           >
-            <Send className="h-4.5 w-4.5 text-white" />
+            <Send className="h-5 w-5 text-white" />
           </motion.button>
         </div>
       </div>
