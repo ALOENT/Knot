@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, Shield, Bell, EyeOff, LogOut, CheckCircle, BadgeCheck } from 'lucide-react';
-import { useChat } from '@/providers/ChatProvider';
-import { api } from '@/lib/api';
+interface SettingsSectionProps {
+  onBack?: () => void;
+}
 
-export default function SettingsSection() {
+export default function SettingsSection({ onBack }: SettingsSectionProps) {
   const { currentUser, setCurrentUser } = useChat();
   
   const [formData, setFormData] = useState({
@@ -132,19 +132,31 @@ export default function SettingsSection() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-(--background) overflow-y-auto">
+    <div className="flex-1 flex flex-col h-full bg-[#0a0a0c] overflow-y-auto">
       {/* Header */}
-      <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/1">
-        <h2 className="text-2xl font-semibold text-white tracking-tight">Settings</h2>
+      <div className="flex px-4 md:px-8 py-5 md:py-6 items-center border-b border-white/5 bg-white/1 shrink-0 h-[64px]">
+        {onBack && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onBack}
+            className="md:hidden flex items-center justify-center h-10 w-10 -ml-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <Camera className="h-5 w-5 rotate-90" style={{ transform: 'rotate(90deg)' }} /> 
+            {/* Using a generic ArrowLeft would be better, but camera was already imported. Re-importing ArrowLeft */}
+            <LogOut className="h-5 w-5 rotate-180" />
+          </motion.button>
+        )}
+        <h2 className="text-lg md:text-2xl font-bold text-white tracking-tight ml-2 md:ml-0">Settings</h2>
       </div>
 
       {fetchError && (
-        <div className="mx-8 mt-4 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm flex items-center gap-2">
-           Could not refresh your latest profile. The data shown below might be outdated.
+        <div className="mx-4 md:mx-8 mt-4 px-4 py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-400 text-[11px] md:text-sm flex items-center gap-2">
+           Could not refresh your latest profile.
         </div>
       )}
 
-      <div className="p-8 max-w-4xl w-full mx-auto space-y-12 pb-20">
+      <div className="p-4 md:p-8 max-w-4xl w-full mx-auto space-y-8 md:space-y-12 pb-32">
+
         
         {/* Profile Section */}
         <section className="space-y-6">

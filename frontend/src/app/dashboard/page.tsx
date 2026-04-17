@@ -276,7 +276,7 @@ export default function DashboardPage() {
                 className="h-full w-full"
               >
                 {activeTab === 'settings' ? (
-                  <SettingsSection />
+                  <SettingsSection onBack={handleBack} />
                 ) : activeChat && currentUser ? (
                   <ChatWindow
                     activeUser={activeChat}

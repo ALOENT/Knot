@@ -191,38 +191,37 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
           className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0c] text-white overflow-hidden"
         >
           {/* Header */}
-          <div className="flex px-8 py-6 items-center justify-between border-b border-white/5 bg-white/1">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="h-6 w-6 text-indigo-500" />
-              <h2 className="text-2xl font-semibold tracking-tight">Command Center</h2>
+          <div className="flex px-4 md:px-8 py-5 md:py-6 items-center justify-between border-b border-white/5 bg-white/1 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-5 w-5 md:h-6 md:w-6 text-indigo-500" />
+              <h2 className="text-lg md:text-2xl font-bold tracking-tight">Admin</h2>
             </div>
 
-            {/* Tab System */}
-            <div className="flex bg-white/5 p-1 rounded-xl gap-1">
+            {/* Tab System - Compact on mobile */}
+            <div className="flex bg-white/5 p-1 rounded-xl gap-0.5">
               {(['users', 'reports'] as const).map((tabId) => {
                 const isUsers = tabId === 'users';
                 const Icon = isUsers ? Users : Flag;
-                const label = isUsers ? 'Users' : 'Reports';
                 const badge = !isUsers && hasPendingReports;
 
                 return (
                   <button
                     key={tabId}
                     onClick={() => setActiveTab(tabId)}
-                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      activeTab === tabId ? 'text-white' : 'text-gray-400 hover:text-white'
+                    className={`relative flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${
+                      activeTab === tabId ? 'text-white' : 'text-gray-500 hover:text-white'
                     }`}
                   >
                     {activeTab === tabId && (
                       <motion.div
                         layoutId="tab-bg"
-                        className="absolute inset-0 bg-indigo-600 rounded-lg"
+                        className="absolute inset-0 bg-indigo-600 rounded-lg shadow-[0_2px_10px_rgba(79,70,229,0.3)]"
                         transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                       />
                     )}
                     <span className="relative z-10 flex items-center gap-2">
-                      <Icon className="w-4 h-4" />
-                      {label}
+                      <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                      <span className="hidden sm:inline">{isUsers ? 'Users' : 'Reports'}</span>
                       {badge && (
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse border border-[#0a0a0c]" />
                       )}
@@ -232,12 +231,16 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               })}
             </div>
 
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 transition-colors">
-              <X className="h-6 w-6 text-gray-400" />
+            <button 
+              onClick={onClose} 
+              className="p-2 -mr-1 rounded-xl hover:bg-white/5 transition-colors text-gray-400 active:scale-95"
+            >
+              <X className="h-6 w-6" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full space-y-8">
+          <div className="flex-1 overflow-y-auto w-full max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-8 pb-32">
+
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
