@@ -334,11 +334,9 @@ export default function SettingsSection() {
         {/* Divider */}
         <hr className="border-white/5" />
 
-        {/* Danger Zone */}
+        {/* Sign Out Section */}
         <section className="space-y-6">
-          <h3 className="text-sm font-medium text-red-500/50 uppercase tracking-wider mb-4">Danger Zone</h3>
-          
-          <div className="p-6 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-between">
+          <div className="p-6 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
             <div>
               <h4 className="text-white text-sm font-medium">Sign Out</h4>
               <p className="text-white/40 text-xs">Log out of your account on this device</p>
