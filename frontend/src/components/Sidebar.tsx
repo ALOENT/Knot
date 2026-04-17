@@ -89,7 +89,7 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
               {currentUser?.profilePic ? (
                 <img
                   src={currentUser.profilePic}
-                  alt={currentUser.displayName || currentUser.username}
+                  alt={currentUser.displayName || currentUser.username || 'User avatar'}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -144,13 +144,19 @@ export default function Sidebar({ activeTab, onChangeTab, onOpenAdmin, currentUs
             title={currentUser?.displayName || currentUser?.username || 'Profile'}
             aria-label={currentUser?.displayName || currentUser?.username || 'Profile'}
           >
-            <div className="p-2 rounded-xl transition-all duration-300">
+            <div className="p-2 rounded-xl transition-all duration-300 relative">
                {currentUser?.profilePic ? (
                   <div className={`w-6 h-6 rounded-full overflow-hidden border ${activeTab === 'settings' ? 'border-blue-500' : 'border-transparent'} transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`}>
-                     <img src={currentUser.profilePic} alt={currentUser.displayName || currentUser.username || 'Profile'} className="w-full h-full object-cover" />
+                     <img src={currentUser.profilePic} alt={currentUser.displayName || currentUser.username || 'User avatar'} className="w-full h-full object-cover" />
                   </div>
                ) : (
                   <UserCircle strokeWidth={1.25} className={`h-5 w-5 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110' : ''}`} />
+               )}
+
+               {currentUser?.isVerified && (
+                 <div className="absolute bottom-1 right-1 bg-[#0a0a0c] rounded-full p-0.5" title="Verified Account">
+                   <ShieldCheck className="w-2.5 h-2.5 text-blue-500 fill-blue-500/20" strokeWidth={1.5} />
+                 </div>
                )}
             </div>
             {activeTab === 'settings' && (

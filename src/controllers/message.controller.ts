@@ -144,6 +144,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
           displayName: partner.displayName,
           profilePic: partner.profilePic,
           isOnline: partner.isOnline,
+          isVerified: partner.isVerified,
           lastMessage: lastMessage?.content || (lastMessage?.fileUrl ? '📎 Attachment' : null),
           lastMessageTime: lastMessage?.timestamp?.toISOString() || null,
           unreadCount,
