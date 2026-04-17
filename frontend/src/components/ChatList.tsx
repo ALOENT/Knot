@@ -138,7 +138,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                     style={{
                       width: 10,
                       height: 10,
-                      border: '2px solid #0a0a0c',
+                      border: '2px solid var(--dashboard-bg, #0a0a0c)',
                     }}
                   />
                 </div>
@@ -175,7 +175,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                       <motion.span 
                         initial={{ scale: 0.5 }}
                         animate={{ scale: 1 }}
-                        className="shrink-0 ml-2 flex items-center justify-center h-4.5 min-w-[18px] px-1 bg-blue-600 rounded-full text-[10px] font-bold text-white shadow-lg shadow-blue-600/20"
+                        className="shrink-0 ml-2 flex items-center justify-center h-[18px] min-w-[18px] px-1 bg-blue-600 rounded-full text-[10px] font-bold text-white shadow-lg shadow-blue-600/20"
                       >
                         {user.unreadCount! > 99 ? '99+' : user.unreadCount}
                       </motion.span>
