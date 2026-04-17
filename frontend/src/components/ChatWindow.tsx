@@ -27,6 +27,7 @@ export interface Message {
     username: string;
     displayName?: string | null;
     profilePic?: string | null;
+    isVerified?: boolean;
   };
 }
 

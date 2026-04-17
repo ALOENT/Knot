@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, User, Shield, Bell, EyeOff, LogOut, CheckCircle, BadgeCheck, ArrowLeft } from 'lucide-react';
+import { useChat } from '@/providers/ChatProvider';
+import { api } from '@/lib/api';
+
 interface SettingsSectionProps {
+
   onBack?: () => void;
 }
 
