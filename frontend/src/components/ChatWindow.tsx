@@ -73,6 +73,13 @@ function parseMessageContent(text: string): React.ReactNode {
   });
 }
 
+/** Helper to check if a URL points to an image based on extension */
+function isImageFile(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+  return imageExtensions.some(ext => url.toLowerCase().includes(ext));
+}
+
 /* ════════════════════════════════════════════
    Component
    ════════════════════════════════════════════ */
@@ -433,11 +440,32 @@ export default function ChatWindow({
                   )}
                   {msg.fileUrl && (
                     <div className="mt-2 rounded-xl overflow-hidden border border-white/5 bg-black/20">
-                      <img
-                        src={msg.fileUrl}
-                        alt="Attachment"
-                        className="max-h-60 w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
-                      />
+                      {isImageFile(msg.fileUrl) ? (
+                        <img
+                          src={msg.fileUrl}
+                          alt="Attachment"
+                          className="max-h-60 w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
+                        />
+                      ) : (
+                        <a 
+                          href={msg.fileUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 hover:bg-white/5 transition-colors group/file"
+                        >
+                          <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <Paperclip className="h-5 w-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-200 truncate group-hover/file:text-blue-400 transition-colors">
+                              Download Attachment
+                            </p>
+                            <p className="text-[10px] text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                              {msg.fileUrl.split('/').pop() || 'File'}
+                            </p>
+                          </div>
+                        </a>
+                      )}
                     </div>
                   )}
                   <span
@@ -598,7 +626,87 @@ export default function ChatWindow({
           height: 3.5px;
         }
       `}</style>
+
+      {/* Report User Modal */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#0f0f12] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-bold text-white">Report User</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Help us keep Knot safe by reporting violations.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="btn-icon h-9 w-9"
+                  disabled={isSubmittingReport}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                    Reason for reporting
+                  </label>
+                  <textarea
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    placeholder="Describe the issue (harassment, spam, etc.)..."
+                    rows={4}
+                    className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm text-gray-200 placeholder:text-gray-700 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                    disabled={isSubmittingReport}
+                  />
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl">
+                  <Flag className="h-4 w-4 text-yellow-500/60 shrink-0" />
+                  <p className="text-[10px] text-yellow-500/60 leading-tight">
+                    Reports are reviewed by admins. False reporting may lead to account suspension.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-white/5 bg-white/1 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white transition-colors"
+                  disabled={isSubmittingReport}
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleSendReport}
+                  disabled={!reportReason.trim() || isSubmittingReport}
+                  className="px-6 py-2 bg-red-600 rounded-xl font-bold text-xs text-white tracking-wide shadow-lg shadow-red-600/20 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmittingReport ? (
+                    'SUBMITTING...'
+                  ) : (
+                    <>
+                      <Flag className="w-3 h-3" />
+                      SUBMIT REPORT
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-

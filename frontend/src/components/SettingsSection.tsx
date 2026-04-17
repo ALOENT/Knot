@@ -144,6 +144,7 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onBack}
+            aria-label="Go back"
             className="md:hidden flex items-center justify-center h-10 w-10 -ml-2 text-gray-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
