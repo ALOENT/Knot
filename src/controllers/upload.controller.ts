@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { Readable } from 'stream';
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME,
@@ -17,21 +18,41 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     const { buffer, originalname, mimetype } = req.file;
 
-    // Use upload_stream for memory storage adapter
+    // Security - Basic MIME-type check (Security Audit item)
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!allowedMimeTypes.includes(mimetype)) {
+      return res.status(400).json({ success: false, message: 'Invalid file type' });
+    }
+
+    // Use upload_stream for memory storage adapter with robust piping
     const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'knot_chat_uploads',
-          resource_type: 'auto', // Auto detects image, pdf, raw, etc.
+          resource_type: 'auto',
           public_id: `${Date.now()}_${originalname.replace(/[^a-zA-Z0-9_.-]/g, '')}`,
         },
         (error, result) => {
-          if (error) return reject(error);
+          if (error) {
+            logger.error('Cloudinary upload_stream callback error', error);
+            return reject(error);
+          }
           resolve(result);
         }
       );
+
+      // Create a readable stream from buffer and pipe it to Cloudinary
+      const readableStream = new Readable();
+      readableStream._read = () => {}; 
+      readableStream.push(buffer);
+      readableStream.push(null);
       
-      uploadStream.end(buffer);
+      readableStream.on('error', (err) => {
+        logger.error('Readable stream error during upload', err);
+        reject(err);
+      });
+
+      readableStream.pipe(uploadStream);
     });
 
     return res.status(200).json({

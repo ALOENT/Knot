@@ -46,12 +46,23 @@ app.use((req, res, next) => {
 });
 
 // Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-  message: 'Too many requests from this IP, please try again after 15 minutes',
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 150, 
+  message: 'Too many requests, please try again later.',
 });
-app.use('/api', limiter);
+
+const sensitiveLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 requests per hour for sensitive actions
+  message: 'Security threshold reached. Please try again in an hour.',
+});
+
+app.use('/api', generalLimiter);
+app.use('/api/auth/register', sensitiveLimiter);
+app.use('/api/auth/login', sensitiveLimiter);
+app.use('/api/reports', sensitiveLimiter);
+app.use('/api/upload', sensitiveLimiter);
 
 // Body Parser and Cookie Parser
 app.use(express.json({ limit: '10mb' }));

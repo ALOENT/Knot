@@ -1,5 +1,14 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/db';
+import { z } from 'zod';
+
+const idSchema = z.string().uuid('Invalid ID format');
+const updateProfileSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters').optional(),
+  displayName: z.string().max(50, 'Display name too long').nullable().optional(),
+  bio: z.string().max(160, 'Bio too long').nullable().optional(),
+  profilePic: z.string().url('Invalid URL').nullable().optional(),
+});
 
 const isAdminUser = (user: any): boolean => {
   return user?.role === 'ADMIN';
@@ -18,8 +27,8 @@ export const searchUsers = async (req: Request, res: Response) => {
 
     const { query } = req.query;
 
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ success: false, message: 'Please provide a valid search query' });
+    if (!query || typeof query !== 'string' || query.length < 2) {
+      return res.status(400).json({ success: false, message: 'Please provide at least 2 characters to search' });
     }
 
     const includeEmail = isAdminUser(req.user);
@@ -73,7 +82,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
       id: { not: req.user.id }
     };
 
-    if (cursor) {
+    if (cursor && idSchema.safeParse(cursor).success) {
       whereClause.id = {
         ...whereClause.id,
         gt: cursor
@@ -96,7 +105,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         id: 'asc'
       },
       take,
-      skip: cursor ? undefined : skip
+      skip: (cursor && idSchema.safeParse(cursor).success) ? undefined : skip
     });
 
     const hasMore = users.length === take;
@@ -133,13 +142,13 @@ export const updateProfile = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { username, displayName, bio, profilePic } = req.body;
-    
-    // Optional: add validation
-    if (username && username.length < 3) {
-      return res.status(400).json({ success: false, message: 'Username must be at least 3 characters' });
+    const validation = updateProfileSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ success: false, message: validation.error.errors[0].message });
     }
 
+    const { username, displayName, bio, profilePic } = validation.data;
+    
     // Check if username is already taken by someone else
     if (username) {
       const existingUser = await prisma.user.findFirst({
@@ -177,7 +186,6 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
-    console.error('Error updating profile:', error);
     res.status(500).json({ success: false, message: 'Server error while updating profile' });
   }
 };

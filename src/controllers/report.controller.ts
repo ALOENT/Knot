@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/db';
 import { logger } from '../utils/logger';
+import { z } from 'zod';
+
+const reportSchema = z.object({
+  reportedUserId: z.string().uuid('Invalid user ID format'),
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
+});
 
 /**
  * @desc    Create a new report for a user
@@ -10,21 +16,19 @@ import { logger } from '../utils/logger';
 export const createReport = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const reporterId = req.user?.id;
-    const { reportedUserId, reason } = req.body;
-
     if (!reporterId) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-
-    if (!reportedUserId || !trimmedReason) {
-      return res.status(400).json({ success: false, message: 'Reported user ID and non-empty reason are required' });
+    const validation = reportSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        success: false, 
+        message: validation.error.errors[0].message 
+      });
     }
 
-    if (trimmedReason.length > 500) {
-      return res.status(400).json({ success: false, message: 'Reason cannot exceed 500 characters' });
-    }
+    const { reportedUserId, reason: trimmedReason } = validation.data;
 
     // Prevent reporting self
     if (reporterId === reportedUserId) {

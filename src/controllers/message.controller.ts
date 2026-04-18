@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/db';
 import { logger } from '../utils/logger';
+import { z } from 'zod';
+
+const uuidSchema = z.string().uuid('Invalid ID format');
+const paginationSchema = z.object({
+  limit: z.string().optional().transform(v => Math.min(Math.max(parseInt(v || '50'), 1), 100)),
+  cursor: z.string().optional(),
+});
 
 /**
  * @desc    Get paginated message history between authenticated user and a partner
@@ -14,14 +21,14 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const partnerId = req.params.partnerId as string;
-    if (!partnerId) {
-      return res.status(400).json({ success: false, message: 'Partner ID is required' });
+    const { partnerId } = req.params;
+    const partnerIdValidation = uuidSchema.safeParse(partnerId);
+    if (!partnerIdValidation.success) {
+      return res.status(400).json({ success: false, message: 'Invalid partner ID format' });
     }
 
-    // Pagination: default 50, max 100
-    const take = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
-    const cursor = req.query.cursor as string | undefined;
+    const pagination = paginationSchema.parse(req.query);
+    const { limit: take, cursor } = pagination;
 
     const whereClause: any = {
       isDeleted: false,
@@ -187,14 +194,9 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
 export const markAsRead = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const partnerId = req.params.partnerId as string;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-
-    if (!partnerId) {
-      return res.status(400).json({ success: false, message: 'Partner ID is required' });
+    const partnerId = req.params.partnerId;
+    if (!uuidSchema.safeParse(partnerId).success) {
+      return res.status(400).json({ success: false, message: 'Invalid partner ID format' });
     }
 
     await prisma.message.updateMany({
@@ -221,7 +223,10 @@ export const markAsRead = async (req: Request, res: Response, next: NextFunction
 export const deleteMessage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const messageId = req.params.messageId as string;
+    const messageId = req.params.messageId;
+    if (!uuidSchema.safeParse(messageId).success) {
+      return res.status(400).json({ success: false, message: 'Invalid message ID format' });
+    }
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
