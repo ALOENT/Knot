@@ -288,20 +288,26 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    setMessages(prev => {
-      const originalMessages = [...prev];
-      const nextMessages = prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m);
-      
-      // Verify by calling backend
-      api.delete(`/messages/${messageId}`).catch(err => {
-        console.error('Failed to delete message', err);
-        setMessages(originalMessages);
-        alert('Failed to delete message.');
-      });
+    // Capture the original state from the ref or let the rollback use a previous snapshot.
+    // Rather than dealing with a ref, we can just grab it by setting state and returning, but to avoid race
+    // conditions we'll pull the snapshot outside if possible. However, the best way in React is to just read
+    // from the existing `messages` state in the dependency array (or using a ref). Let's use the local `messages` state.
+    // Wait! `messages` is in the hook closure.
+    const originalMessage = messages.find(m => m.id === messageId);
+    if (!originalMessage) return;
 
-      return nextMessages;
+    setMessages(prev => 
+      prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m)
+    );
+      
+    // Verify by calling backend
+    api.delete(`/messages/${messageId}`).catch(err => {
+      console.error('Failed to delete message', err);
+      // Rollback to original message
+      setMessages(prev => prev.map(m => m.id === messageId ? originalMessage : m));
+      alert('Failed to delete message.');
     });
-  }, [currentUser]);
+  }, [currentUser, messages]);
 
   return (
     <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage }}>
