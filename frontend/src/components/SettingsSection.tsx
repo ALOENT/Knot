@@ -10,7 +10,7 @@ interface SettingsSectionProps {
 }
 
 export default function SettingsSection({ onBack }: SettingsSectionProps) {
-  const { currentUser, setCurrentUser } = useChat();
+  const { currentUser, setCurrentUser, privacyModeEnabled, setPrivacyModeEnabled } = useChat();
   
   const [formData, setFormData] = useState({
     username: currentUser?.username || '',
@@ -30,20 +30,11 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
     return true;
   });
 
-  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('knot_privacy');
-      return saved !== null ? JSON.parse(saved) : false;
-    }
-    return false;
-  });
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('knot_notifications', JSON.stringify(notificationsEnabled));
-      localStorage.setItem('knot_privacy', JSON.stringify(privacyModeEnabled));
     }
-  }, [notificationsEnabled, privacyModeEnabled]);
+  }, [notificationsEnabled]);
   const [fetchError, setFetchError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<number | null>(null);

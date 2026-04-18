@@ -500,13 +500,64 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       <p className="text-center text-gray-500 py-10">No chat context captured.</p>
                     )}
                   </div>
-                  <div className="p-6 border-t border-white/5 bg-white/1 flex justify-end">
-                    <button 
-                       onClick={() => setSelectedReport(null)}
-                       className="px-6 py-2 bg-indigo-600 rounded-xl font-bold text-sm tracking-wide"
-                    >
-                      CLOSE PREVIEW
-                    </button>
+                  <div className="p-6 border-t border-white/5 bg-white/1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={async () => {
+                          if (!selectedReport) return;
+                          // In this context, 'Warn' just dismisses/resolves the report
+                          await handleResolveReport(selectedReport.id);
+                          setSelectedReport(null);
+                        }}
+                        disabled={resolvingReports[selectedReport.id]}
+                        className="px-4 py-2.5 bg-yellow-600/10 border border-yellow-500/20 text-yellow-500 rounded-xl font-bold text-xs hover:bg-yellow-600/20 transition-all disabled:opacity-50"
+                      >
+                        WARN REPORTER
+                      </button>
+                      <button 
+                         onClick={async () => {
+                           if (!selectedReport) return;
+                           try {
+                             await api.put('/admin/update-status', { userId: selectedReport.reportedUserId, isBanned: true });
+                             await handleResolveReport(selectedReport.id);
+                             setSelectedReport(null);
+                           } catch (err) {
+                             alert('Failed to ban reported user');
+                           }
+                         }}
+                         disabled={resolvingReports[selectedReport.id]}
+                         className="px-4 py-2.5 bg-red-600/10 border border-red-500/20 text-red-500 rounded-xl font-bold text-xs hover:bg-red-600/20 transition-all disabled:opacity-50"
+                      >
+                        BAN REPORTED
+                      </button>
+                      <button 
+                         onClick={async () => {
+                           if (!selectedReport) return;
+                           try {
+                             await api.put('/admin/update-status', { userId: selectedReport.reporterId, isBanned: true });
+                             await handleResolveReport(selectedReport.id);
+                             setSelectedReport(null);
+                           } catch (err) {
+                             alert('Failed to ban reporter');
+                           }
+                         }}
+                         disabled={resolvingReports[selectedReport.id]}
+                         className="px-4 py-2.5 bg-orange-600/10 border border-orange-500/20 text-orange-500 rounded-xl font-bold text-xs hover:bg-orange-600/20 transition-all disabled:opacity-50"
+                      >
+                        BAN REPORTER
+                      </button>
+                      <button 
+                         onClick={async () => {
+                           if (!selectedReport) return;
+                           await handleResolveReport(selectedReport.id);
+                           setSelectedReport(null);
+                         }}
+                         disabled={resolvingReports[selectedReport.id]}
+                         className="px-4 py-2.5 bg-white/5 border border-white/10 text-gray-400 rounded-xl font-bold text-xs hover:bg-white/10 transition-all disabled:opacity-50"
+                      >
+                        DISMISS REPORT
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               </motion.div>

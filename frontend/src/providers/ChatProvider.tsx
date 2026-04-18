@@ -32,6 +32,8 @@ interface ChatContextType {
   isLoadingMessages: boolean;
   setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
   deleteMessage: (messageId: string) => void;
+  privacyModeEnabled: boolean;
+  setPrivacyModeEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -45,6 +47,8 @@ const ChatContext = createContext<ChatContextType>({
   isLoadingMessages: false,
   setCurrentUser: () => {},
   deleteMessage: () => {},
+  privacyModeEnabled: false,
+  setPrivacyModeEnabled: () => {},
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -57,6 +61,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const messagesAbortRef = useRef<AbortController | null>(null);
   const activeChatRef = useRef<ChatUser | null>(null);
+
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('knot_privacy');
+      return saved !== null ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('knot_privacy', JSON.stringify(privacyModeEnabled));
+    }
+  }, [privacyModeEnabled]);
 
   // Keep ref in sync with state for use in socket callbacks
   useEffect(() => {
@@ -213,6 +231,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       api.put(`/messages/mark-read/${user.id}`).catch((err) => {
         console.error('[ChatProvider] Failed to mark as read:', err);
       });
+      
+      // FIX 1: Instantly emit message_read socket event so the sender sees live tick updates
+      if (socket) {
+        socket.emit('message_read', { senderId: user.id });
+      }
 
       api
         .get(`/messages/${user.id}`, { signal: abortController.signal })
@@ -236,11 +259,6 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       if (!socket || !activeChat || !currentUser) return;
       if (currentUser.isBanned) {
         console.warn('Action blocked: user is banned');
-        return;
-      }
-      if (!currentUser.isVerified) {
-        console.warn('Action blocked: user is unverified');
-        alert('You must be verified to send messages.');
         return;
       }
 
@@ -282,11 +300,6 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('Action blocked: user is banned');
       return;
     }
-    if (!currentUser.isVerified) {
-      console.warn('Action blocked: user is unverified');
-      alert('You must be verified to delete messages.');
-      return;
-    }
 
     // Capture the original state from the ref or let the rollback use a previous snapshot.
     // Rather than dealing with a ref, we can just grab it by setting state and returning, but to avoid race
@@ -310,7 +323,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   }, [currentUser, messages]);
 
   return (
-    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage }}>
+    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage, privacyModeEnabled, setPrivacyModeEnabled }}>
       {children}
     </ChatContext.Provider>
   );

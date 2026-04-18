@@ -126,7 +126,8 @@ export default function ChatWindow({
   const [messageMenuOpenId, setMessageMenuOpenId] = useState<string | null>(null);
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
 
-  const isOnline = activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false;
+  const { privacyModeEnabled } = useChat();
+  const isOnline = privacyModeEnabled ? false : (activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false);
   const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
 
   // Check if blocked by me
@@ -155,21 +156,23 @@ export default function ChatWindow({
 
   const handleBlockUser = async () => {
     if (!activeUser) return;
+    setIsBlockedByMe(true);
+    setIsMenuOpen(false);
     try {
       await api.post(`/users/block/${activeUser.id}`);
-      setIsBlockedByMe(true);
-      setIsMenuOpen(false);
     } catch {
+      setIsBlockedByMe(false);
       alert("Failed to block user");
     }
   };
 
   const handleUnblockUser = async () => {
     if (!activeUser) return;
+    setIsBlockedByMe(false);
     try {
       await api.delete(`/users/block/${activeUser.id}`);
-      setIsBlockedByMe(false);
     } catch {
+      setIsBlockedByMe(true);
       alert("Failed to unblock user");
     }
   };

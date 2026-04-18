@@ -34,6 +34,7 @@ interface ChatListProps {
 export default function ChatList({ users, activeChatId, onSelectChat }: ChatListProps) {
   const [search, setSearch] = useState('');
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const { activeChat, setActiveChat, currentUser, privacyModeEnabled } = useChat();
   const { onlineUsers, typingUsers } = useSocket();
 
   const filtered = users.filter((u) => {
@@ -81,7 +82,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
         <AnimatePresence mode="popLayout">
           {filtered.map((user) => {
             const isActive = user.id === activeChatId;
-            const isOnline = onlineUsers.get(user.id) ?? user.isOnline ?? false;
+            const isOnline = privacyModeEnabled ? false : (onlineUsers.get(user.id) ?? user.isOnline ?? false);
             const isTyping = typingUsers.get(user.id) ?? false;
 
             return (

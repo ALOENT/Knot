@@ -55,13 +55,16 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       },
     });
 
+    // FIX 4: Reverse the order to chronological (oldest first)
+    contextMessages.reverse();
+
     // Create the report
     const report = await prisma.report.create({
       data: {
         reporterId,
         reportedUserId,
         reason: trimmedReason,
-        contextMessages: contextMessages, // Snapshot
+        contextMessages: contextMessages as any, // Snapshot
       },
     });
 
