@@ -6,7 +6,7 @@ import { z } from 'zod';
 const uuidSchema = z.string().uuid('Invalid ID format');
 const paginationSchema = z.object({
   limit: z.coerce.number().optional().default(50).transform(n => Math.min(Math.max(isNaN(n) ? 50 : n, 1), 100)),
-  cursor: z.string().optional().refine(s => !s || !Number.isNaN(new Date(s).getTime()), { message: "invalid ISO date" }),
+  cursor: z.string().optional().refine(s => !s || !Number.isNaN(new Date(s).getTime()), { message: "Invalid date format" }),
 });
 
 /**

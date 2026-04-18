@@ -21,13 +21,15 @@ export const uploadFile = async (req: Request, res: Response) => {
     // Security - Content-based MIME-type check (Security Audit item)
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
     
-    // Dynamic import for file-type (ESM)
-    const { fromBuffer } = await (eval('import("file-type")') as Promise<typeof import('file-type')>);
-    const detectedType = await fromBuffer(buffer);
+    // Static dynamic import for file-type (ESM)
+    const { fileTypeFromBuffer } = await (import('file-type') as any);
+    const detectedType = await fileTypeFromBuffer(buffer);
     
-    const finalMime = detectedType ? detectedType.mime : multerMime;
+    if (!detectedType) {
+      return res.status(400).json({ success: false, message: 'Unable to determine file type or invalid content' });
+    }
 
-    if (!allowedMimeTypes.includes(finalMime)) {
+    if (!allowedMimeTypes.includes(detectedType.mime)) {
       return res.status(400).json({ success: false, message: 'Invalid file content type' });
     }
 

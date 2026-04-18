@@ -7,7 +7,7 @@ const zod_1 = require("zod");
 const uuidSchema = zod_1.z.string().uuid('Invalid ID format');
 const paginationSchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().optional().default(50).transform(n => Math.min(Math.max(isNaN(n) ? 50 : n, 1), 100)),
-    cursor: zod_1.z.string().optional().refine(s => !s || !Number.isNaN(new Date(s).getTime()), { message: "invalid ISO date" }),
+    cursor: zod_1.z.string().optional().refine(s => !s || !Number.isNaN(new Date(s).getTime()), { message: "Invalid date format" }),
 });
 /**
  * @desc    Get paginated message history between authenticated user and a partner
