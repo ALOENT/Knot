@@ -16,6 +16,12 @@ enum FriendshipStatus {
   ACCEPTED
 }
 
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 model User {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -59,16 +65,20 @@ model Message {
   fileUrl    String? // For images, docs
   senderId   String
   receiverId String
+  replyToId  String?
   isDeleted  Boolean  @default(false) // Soft deletion for admin audit
-  isSeen     Boolean  @default(false)
+  status     MessageStatus @default(SENT)
   timestamp  DateTime @default(now())
 
   sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  replyTo  Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies  Message[] @relation("MessageReplies")
 
   @@index([senderId, receiverId])
   @@index([receiverId])
-  @@index([senderId, receiverId, isSeen])
+  @@index([senderId, receiverId, status])
   @@index([timestamp])
 }
 

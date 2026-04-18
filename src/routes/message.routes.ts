@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getMessages, getConversations, markAsRead } from '../controllers/message.controller';
+import { getMessages, getConversations, markAsRead, deleteMessage } from '../controllers/message.controller';
 import { protect } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -11,6 +11,7 @@ router.use(protect);
 // otherwise Express treats "conversations" as a partnerId param
 router.get('/conversations', getConversations);
 router.put('/mark-read/:partnerId', markAsRead);
+router.delete('/:messageId', deleteMessage);
 router.get('/:partnerId', getMessages);
 
 export default router;

@@ -181,3 +181,135 @@ export const updateProfile = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Server error while updating profile' });
   }
 };
+
+/**
+ * @desc    Get user profile (public fields only)
+ * @route   GET /api/users/:userId
+ * @access  Private
+ */
+export const getUserProfile = async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { userId } = req.params;
+
+    // Check for block
+    const block = await prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: req.user.id, blockedId: userId },
+          { blockerId: userId, blockedId: req.user.id }
+        ]
+      }
+    });
+
+    if (block) {
+      return res.status(403).json({ success: false, message: 'You cannot view this profile.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profilePic: true,
+        banner: true,
+        isOnline: true,
+        lastSeen: true,
+        isVerified: true,
+        createdAt: true,
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error while fetching profile' });
+  }
+};
+
+/**
+ * @desc    Block a user
+ * @route   POST /api/users/block/:userId
+ * @access  Private
+ */
+export const blockUser = async (req: Request, res: Response) => {
+  try {
+    const blockerId = req.user?.id;
+    const blockedId = req.params.userId;
+
+    if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
+    if (blockerId === blockedId) return res.status(400).json({ success: false, message: 'Cannot block yourself' });
+
+    await prisma.block.upsert({
+      where: {
+        blockerId_blockedId: { blockerId, blockedId }
+      },
+      update: {},
+      create: { blockerId, blockedId }
+    });
+
+    res.status(200).json({ success: true, message: 'User blocked successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to block user' });
+  }
+};
+
+/**
+ * @desc    Unblock a user
+ * @route   DELETE /api/users/block/:userId
+ * @access  Private
+ */
+export const unblockUser = async (req: Request, res: Response) => {
+  try {
+    const blockerId = req.user?.id;
+    const blockedId = req.params.userId;
+
+    if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
+
+    await prisma.block.deleteMany({
+      where: { blockerId, blockedId }
+    });
+
+    res.status(200).json({ success: true, message: 'User unblocked successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to unblock user' });
+  }
+};
+
+/**
+ * @desc    Get blocked users
+ * @route   GET /api/users/blocked
+ * @access  Private
+ */
+export const getBlockedUsers = async (req: Request, res: Response) => {
+  try {
+    const blockerId = req.user?.id;
+    if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
+
+    const blocked = await prisma.block.findMany({
+      where: { blockerId },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            profilePic: true,
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ success: true, blockedUsers: blocked.map(b => b.blocked) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch blocked users' });
+  }
+};

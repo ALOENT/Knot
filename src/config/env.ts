@@ -9,7 +9,10 @@ const envSchema = z.object({
   ADMIN_EMAIL: z.string().email("ADMIN_EMAIL must be a valid email"),
   PORT: z.string().optional().default('5000'),
   CLIENT_URL: z.string().url().optional(),
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development')
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  CLOUDINARY_CLOUD_NAME: z.string().min(1, "Cloudinary cloud name missing"),
+  CLOUDINARY_API_KEY: z.string().min(1, "Cloudinary API key missing"),
+  CLOUDINARY_SECRET: z.string().min(1, "Cloudinary secret missing")
 });
 
 const _env = envSchema.safeParse(process.env);

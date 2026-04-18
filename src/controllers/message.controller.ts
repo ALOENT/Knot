@@ -47,6 +47,19 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         senderId: true,
         receiverId: true,
         timestamp: true,
+        timestamp: true,
+        status: true,
+        replyToId: true,
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            senderId: true,
+            sender: {
+              select: { username: true, displayName: true }
+            }
+          }
+        },
         sender: {
           select: {
             id: true,
@@ -59,14 +72,14 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
       },
     });
 
-    // Mark unread messages from the partner as seen
+    // Mark unread messages from the partner as seen (handled primarily by sockets, but fallback here)
     await prisma.message.updateMany({
       where: {
         senderId: partnerId,
         receiverId: userId,
-        isSeen: false,
+        status: { in: ['SENT', 'DELIVERED'] },
       },
-      data: { isSeen: true },
+      data: { status: 'READ' },
     });
 
     res.status(200).json({
@@ -132,7 +145,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
             where: {
               senderId: partner.id,
               receiverId: userId,
-              isSeen: false,
+              status: { in: ['SENT', 'DELIVERED'] },
               isDeleted: false,
             },
           }),
@@ -189,14 +202,50 @@ export const markAsRead = async (req: Request, res: Response, next: NextFunction
       where: {
         senderId: partnerId,
         receiverId: userId,
-        isSeen: false,
+        status: { in: ['SENT', 'DELIVERED'] },
       },
-      data: { isSeen: true },
+      data: { status: 'READ' },
     });
 
     res.status(200).json({ success: true });
   } catch (error) {
     logger.error('Failed to mark as read', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Soft delete a message sent by the user
+ * @route   DELETE /api/messages/:messageId
+ * @access  Private
+ */
+export const deleteMessage = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    const messageId = req.params.messageId;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    if (message.senderId !== userId) {
+      return res.status(403).json({ success: false, message: 'Only the sender can delete this message' });
+    }
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { isDeleted: true },
+    });
+
+    res.status(200).json({ success: true, message: 'Message deleted successfully' });
+  } catch (error) {
+    logger.error('Failed to delete message', error);
     next(error);
   }
 };
