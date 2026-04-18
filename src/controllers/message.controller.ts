@@ -47,7 +47,6 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         senderId: true,
         receiverId: true,
         timestamp: true,
-        timestamp: true,
         status: true,
         replyToId: true,
         replyTo: {
@@ -222,7 +221,7 @@ export const markAsRead = async (req: Request, res: Response, next: NextFunction
 export const deleteMessage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const messageId = req.params.messageId;
+    const messageId = req.params.messageId as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Authentication required' });

@@ -193,7 +193,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
 
     // Check for block
     const block = await prisma.block.findFirst({
@@ -243,7 +243,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
 export const blockUser = async (req: Request, res: Response) => {
   try {
     const blockerId = req.user?.id;
-    const blockedId = req.params.userId;
+    const blockedId = req.params.userId as string;
 
     if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
     if (blockerId === blockedId) return res.status(400).json({ success: false, message: 'Cannot block yourself' });
@@ -270,7 +270,7 @@ export const blockUser = async (req: Request, res: Response) => {
 export const unblockUser = async (req: Request, res: Response) => {
   try {
     const blockerId = req.user?.id;
-    const blockedId = req.params.userId;
+    const blockedId = req.params.userId as string;
 
     if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
 
