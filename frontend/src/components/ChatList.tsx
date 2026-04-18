@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, BadgeCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useSocket } from '@/providers/SocketProvider';
+import { useChat } from '@/providers/ChatProvider';
 
 /* ════════════════════════════════════════════
    Types
@@ -23,15 +24,13 @@ export interface ChatUser {
 
 interface ChatListProps {
   users: ChatUser[];
-  activeChatId: string | null;
-  onSelectChat: (user: ChatUser) => void;
 }
 
 /* ════════════════════════════════════════════
    Component
    ════════════════════════════════════════════ */
 
-export default function ChatList({ users, activeChatId, onSelectChat }: ChatListProps) {
+export default function ChatList({ users }: ChatListProps) {
   const [search, setSearch] = useState('');
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const { activeChat, setActiveChat, currentUser, privacyModeEnabled } = useChat();
@@ -81,7 +80,7 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
       <div className="flex-1 overflow-y-auto px-2 pb-20 md:pb-4 space-y-1">
         <AnimatePresence mode="popLayout">
           {filtered.map((user) => {
-            const isActive = user.id === activeChatId;
+            const isActive = user.id === activeChat?.id;
             const isOnline = privacyModeEnabled ? false : (onlineUsers.get(user.id) ?? user.isOnline ?? false);
             const isTyping = typingUsers.get(user.id) ?? false;
 
@@ -99,10 +98,10 @@ export default function ChatList({ users, activeChatId, onSelectChat }: ChatList
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onSelectChat(user);
+                    setActiveChat(user);
                   }
                 }}
-                onClick={() => onSelectChat(user)}
+                onClick={() => setActiveChat(user)}
                 className={`chat-item group flex items-center gap-4 py-3.5 px-3 rounded-2xl cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
                   isActive ? 'bg-blue-600/10 border-blue-500/20' : 'hover:bg-white/5 border-transparent'
                 } border`}
