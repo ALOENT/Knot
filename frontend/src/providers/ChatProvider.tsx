@@ -159,7 +159,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const handleRead = (data: { readerId: string }) => {
-      setMessages((prev) => prev.map(m => m.senderId === currentUser.id && (m.status === 'SENT' || m.status === 'DELIVERED') ? { ...m, status: 'READ' } : m));
+      setMessages((prev) => prev.map(m => 
+        m.senderId === currentUser?.id && m.receiverId === data.readerId && (m.status === 'SENT' || m.status === 'DELIVERED') 
+          ? { ...m, status: 'READ' } 
+          : m
+      ));
     };
 
     const handleDeleted = (data: { messageId: string }) => {
@@ -273,13 +277,31 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Delete Message function
   const deleteMessage = useCallback((messageId: string) => {
-    // Optimistic delete
-    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m));
-    // Verify by calling backend
-    api.delete(`/messages/${messageId}`).catch(err => {
-      console.error('Failed to delete message', err);
+    if (!currentUser) return;
+    if (currentUser.isBanned) {
+      console.warn('Action blocked: user is banned');
+      return;
+    }
+    if (!currentUser.isVerified) {
+      console.warn('Action blocked: user is unverified');
+      alert('You must be verified to delete messages.');
+      return;
+    }
+
+    setMessages(prev => {
+      const originalMessages = [...prev];
+      const nextMessages = prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m);
+      
+      // Verify by calling backend
+      api.delete(`/messages/${messageId}`).catch(err => {
+        console.error('Failed to delete message', err);
+        setMessages(originalMessages);
+        alert('Failed to delete message.');
+      });
+
+      return nextMessages;
     });
-  }, []);
+  }, [currentUser]);
 
   return (
     <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage }}>
