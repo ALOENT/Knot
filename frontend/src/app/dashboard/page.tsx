@@ -16,7 +16,7 @@ import type { ChatUser } from '@/components/ChatList';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentUser, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages } = useChat();
+  const { currentUser, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage } = useChat();
   const { lastReceivedMessage } = useSocket();
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   
@@ -134,10 +134,10 @@ export default function DashboardPage() {
   }, [setActiveChat]);
 
   const handleSendMessage = useCallback(
-    (content: string) => {
-      sendMessage(content);
+    (content: string, fileUrl?: string, replyToId?: string) => {
+      sendMessage(content, fileUrl, replyToId);
       if (activeChat) {
-        const preview = content.slice(0, 50);
+        const preview = content ? content.slice(0, 50) : 'Attachment';
         const time = new Date().toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -292,6 +292,7 @@ export default function DashboardPage() {
                     messages={messages}
                     currentUserId={currentUser.id}
                     onSendMessage={handleSendMessage}
+                    onDeleteMessage={deleteMessage}
                     onBack={handleBack}
                     isLoadingMessages={isLoadingMessages}
                   />

@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
+import UserProfilePanel from '@/components/UserProfilePanel';
 import dynamic from 'next/dynamic';
 
 // Lazy-load emoji picker to avoid SSR issues and reduce initial bundle
@@ -22,6 +23,15 @@ export interface Message {
   senderId: string;
   receiverId: string;
   timestamp: string;
+  status?: 'SENT' | 'DELIVERED' | 'READ';
+  isDeleted?: boolean;
+  replyToId?: string | null;
+  replyTo?: {
+    id: string;
+    content?: string | null;
+    senderId: string;
+    sender?: { username: string; displayName?: string | null };
+  } | null;
   sender?: {
     id: string;
     username: string;
@@ -35,7 +45,8 @@ interface ChatWindowProps {
   activeUser: ChatUser | null;
   messages: Message[];
   currentUserId: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, fileUrl?: string, replyToId?: string) => void;
+  onDeleteMessage?: (id: string) => void;
   onBack?: () => void;
   isLoadingMessages?: boolean;
 }
@@ -102,14 +113,52 @@ export default function ChatWindow({
   const menuRef = useRef<HTMLDivElement>(null);
   const { onlineUsers, typingUsers, emitStartTyping, emitStopTyping } = useSocket();
 
-  // Reporting State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // New states
+  const [isBlockedByMe, setIsBlockedByMe] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [messageMenuOpenId, setMessageMenuOpenId] = useState<string | null>(null);
+  const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+
   const isOnline = activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false;
   const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
+
+  // Check if blocked by me
+  useEffect(() => {
+    if (!activeUser) return;
+    setIsBlockedByMe(false);
+    api.get('/users/blocked').then(res => {
+      if (res.data?.blockedUsers?.some((u: any) => u.id === activeUser.id)) {
+        setIsBlockedByMe(true);
+      }
+    }).catch(err => console.error("Failed fetching blocked status", err));
+  }, [activeUser]);
+
+  const handleBlockUser = async () => {
+    if (!activeUser) return;
+    try {
+      await api.post(`/users/block/${activeUser.id}`);
+      setIsBlockedByMe(true);
+      setIsMenuOpen(false);
+    } catch {
+      alert("Failed to block user");
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!activeUser) return;
+    try {
+      await api.delete(`/users/block/${activeUser.id}`);
+      setIsBlockedByMe(false);
+    } catch {
+      alert("Failed to unblock user");
+    }
+  };
 
   const handleSendReport = async () => {
     if (!activeUser || !reportReason) return;
@@ -197,14 +246,37 @@ export default function ChatWindow({
     [activeUser, emitStartTyping, emitStopTyping],
   );
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || !activeUser) return;
+    if ((!trimmed && !selectedFile) || !activeUser || isUploading || isBlockedByMe) return;
 
-    onSendMessage(trimmed);
+    let fileUrl: string | undefined = undefined;
+
+    if (selectedFile) {
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const res = await api.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data.success && res.data.file) {
+          fileUrl = res.data.file.url;
+        }
+      } catch (error) {
+        console.error("Failed to upload file", error);
+        alert("Failed to upload file. Please try again.");
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+
+    onSendMessage(trimmed, fileUrl, replyingTo?.id);
     setInput('');
     setSelectedFile(null);
     setShowEmojiPicker(false);
+    setReplyingTo(null);
 
     emitStopTyping(activeUser.id);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -275,68 +347,70 @@ export default function ChatWindow({
           )}
 
           {/* User info */}
-          <div className="relative shrink-0">
-            <div
-              className="h-10 w-10 rounded-2xl flex items-center justify-center overflow-hidden"
-              style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-              }}
-            >
-              {activeUser.profilePic ? (
-                <img
-                  src={activeUser.profilePic}
-                  alt={activeUser.displayName || activeUser.username}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-bold text-gray-500">
-                  {(activeUser.displayName || activeUser.username).charAt(0).toUpperCase()}
-                </span>
-              )}
+          <button onClick={() => setIsProfilePanelOpen(true)} className="flex items-center gap-3 min-w-0 text-left cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="relative shrink-0">
+              <div
+                className="h-10 w-10 rounded-2xl flex items-center justify-center overflow-hidden"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                }}
+              >
+                {activeUser.profilePic ? (
+                  <img
+                    src={activeUser.profilePic}
+                    alt={activeUser.displayName || activeUser.username}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-bold text-gray-500">
+                    {(activeUser.displayName || activeUser.username).charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div
+                className={`absolute -bottom-0.5 -right-0.5 status-dot ${
+                  isOnline ? 'online' : 'offline'
+                }`}
+                style={{ width: 10, height: 10, border: '2px solid #0a0a0c' }}
+              />
             </div>
-            <div
-              className={`absolute -bottom-0.5 -right-0.5 status-dot ${
-                isOnline ? 'online' : 'offline'
-              }`}
-              style={{ width: 10, height: 10, border: '2px solid #0a0a0c' }}
-            />
-          </div>
 
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-bold text-white leading-none flex items-center mb-1">
-              <span className="truncate">{activeUser.displayName || activeUser.username}</span>
-              {activeUser.isVerified && (
-                <BadgeCheck className="w-4 h-4 text-blue-500 ml-1.5 shrink-0" />
-              )}
-            </h3>
-            <AnimatePresence mode="wait">
-              {isTyping ? (
-                <motion.div
-                  key="typing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-1.5"
-                >
-                  <div className="typing-dots">
-                    <span /><span /><span />
-                  </div>
-                  <span className="text-[10px] text-indigo-400 font-bold tracking-tight uppercase">typing</span>
-                </motion.div>
-              ) : (
-                <motion.span
-                  key="status"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className={`text-[10px] font-medium ${isOnline ? 'text-green-500' : 'text-gray-500'}`}
-                >
-                  {isOnline ? 'Online now' : 'Offline'}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </div>
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white leading-none flex items-center mb-1">
+                <span className="truncate">{activeUser.displayName || activeUser.username}</span>
+                {activeUser.isVerified && (
+                  <BadgeCheck className="w-4 h-4 text-blue-500 ml-1.5 shrink-0" />
+                )}
+              </h3>
+              <AnimatePresence mode="wait">
+                {isTyping ? (
+                  <motion.div
+                    key="typing"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <div className="typing-dots">
+                      <span /><span /><span />
+                    </div>
+                    <span className="text-[10px] text-indigo-400 font-bold tracking-tight uppercase">typing</span>
+                  </motion.div>
+                ) : (
+                  <motion.span
+                    key="status"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`text-[10px] font-medium ${isOnline ? 'text-green-500' : 'text-gray-500'}`}
+                  >
+                    {isOnline ? 'Online now' : 'Offline'}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+          </button>
         </div>
 
         {/* Options Dropdown */}
@@ -361,6 +435,19 @@ export default function ChatWindow({
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
                 className="absolute top-full right-0 mt-2 w-48 py-2 bg-[#0f0f12] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
               >
+                 <button 
+                    onClick={() => {
+                      if (isBlockedByMe) {
+                        handleUnblockUser();
+                      } else {
+                        handleBlockUser();
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-300 hover:bg-white/5 transition-colors flex items-center gap-2 focus:outline-none"
+                  >
+                   <span className="w-4 h-4 flex items-center justify-center text-red-500">⚠</span>
+                   {isBlockedByMe ? 'UNBLOCK USER' : 'BLOCK USER'}
+                 </button>
                  <button 
                     onClick={() => {
                       setIsReportModalOpen(true);
@@ -431,14 +518,41 @@ export default function ChatWindow({
                     isMine
                       ? 'bg-blue-600/15 text-blue-50 border border-blue-500/20 rounded-2xl rounded-tr-sm'
                       : 'bg-[#151518] text-gray-200 border border-white/5 rounded-2xl rounded-tl-sm'
-                  }`}
+                  } ${msg.isDeleted ? 'opacity-60 italic' : ''}`}
                 >
-                  {msg.content && (
+                  {/* Message Menu */}
+                  {!msg.isDeleted && (
+                    <div className={`absolute top-2 ${isMine ? '-left-12' : '-right-12'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1`}>
+                      <button onClick={() => setReplyingTo(msg)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Reply">
+                         <Reply className="w-3.5 h-3.5" />
+                      </button>
+                      {isMine && onDeleteMessage && (
+                        <button onClick={() => { if (window.confirm("Delete message?")) onDeleteMessage(msg.id); }} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title="Delete">
+                           <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reply Block */}
+                  {msg.replyTo && (
+                    <div className="mb-2 pl-3 py-1.5 border-l-2 border-white/20 bg-black/10 rounded-r-lg text-xs">
+                      <p className="font-bold text-white/70 mb-0.5">{msg.replyTo.sender?.displayName || msg.replyTo.sender?.username}</p>
+                      <p className="text-white/50 truncate pr-2">{msg.replyTo.content || 'Attachment'}</p>
+                    </div>
+                  )}
+
+                  {msg.isDeleted ? (
+                    <div className="flex items-center gap-2 text-gray-500 text-xs">
+                      <Trash2 className="w-3 h-3" />
+                      <span>This message was deleted</span>
+                    </div>
+                  ) : msg.content && (
                     <p style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
                       {parseMessageContent(msg.content)}
                     </p>
                   )}
-                  {msg.fileUrl && (
+                  {!msg.isDeleted && msg.fileUrl && (
                     <div className="mt-2 rounded-xl overflow-hidden border border-white/5 bg-black/20">
                       {isImageFile(msg.fileUrl) ? (
                         <img
@@ -469,14 +583,21 @@ export default function ChatWindow({
                     </div>
                   )}
                   <span
-                    className={`block text-[10px] mt-1.5 font-medium tracking-tight ${
-                      isMine ? 'text-blue-200/40 text-right' : 'text-gray-500'
+                    className={`flex items-center gap-1 text-[10px] mt-1.5 font-medium tracking-tight ${
+                      isMine ? 'justify-end text-blue-200/40' : 'justify-start text-gray-500'
                     }`}
                   >
                     {new Date(msg.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
+                    {isMine && !msg.isDeleted && (
+                       <span className="ml-0.5 inline-flex items-center" title={msg.status}>
+                         {msg.status === 'SENT' && <Check className="w-3 h-3 opacity-60" />}
+                         {msg.status === 'DELIVERED' && <CheckCheck className="w-3 h-3 opacity-60" />}
+                         {msg.status === 'READ' && <CheckCheck className="w-3 h-3 text-blue-400" />}
+                       </span>
+                    )}
                   </span>
                 </div>
               </motion.div>
@@ -527,6 +648,32 @@ export default function ChatWindow({
 
       {/* ── Message input bar ── */}
       <div className="shrink-0 px-4 pb-6 md:pb-5 pt-1 relative">
+        {isBlockedByMe ? (
+           <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 border border-white/10 text-center gap-3">
+             <p className="text-sm font-medium text-gray-400">You have blocked this user.</p>
+             <button onClick={handleUnblockUser} className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-colors">
+               UNBLOCK
+             </button>
+           </div>
+        ) : (
+          <>
+            {/* Reply bar */}
+            <AnimatePresence>
+              {replyingTo && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="px-4 py-2 mb-2 bg-white/5 rounded-t-2xl border-l-[3px] border-blue-500 relative"
+                >
+                  <p className="text-xs font-bold text-blue-400">{replyingTo.senderId === currentUserId ? 'You' : (replyingTo.sender?.displayName || replyingTo.sender?.username)}</p>
+                  <p className="text-xs text-gray-300 truncate pr-8">{replyingTo.content || 'Attachment'}</p>
+                  <button onClick={() => setReplyingTo(null)} className="absolute top-2 right-2 p-1 text-gray-500 hover:text-white transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
         {/* Emoji Picker Floating Panel */}
         <AnimatePresence>
           {showEmojiPicker && (
@@ -613,6 +760,8 @@ export default function ChatWindow({
             <Send className="h-5 w-5 text-white" />
           </motion.button>
         </div>
+      </>
+        )}
       </div>
 
       <style jsx>{`
@@ -707,6 +856,12 @@ export default function ChatWindow({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <UserProfilePanel
+        userId={activeUser.id}
+        isOpen={isProfilePanelOpen}
+        onClose={() => setIsProfilePanelOpen(false)}
+      />
     </div>
   );
 }

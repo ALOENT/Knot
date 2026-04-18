@@ -48,6 +48,9 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<number | null>(null);
 
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+  const [fetchingBlocked, setFetchingBlocked] = useState(false);
+
   // Cleanup dismiss timeout on unmount
   useEffect(() => {
     return () => {
@@ -57,9 +60,19 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
     };
   }, []);
 
+  const fetchBlockedUsers = () => {
+    setFetchingBlocked(true);
+    api.get('/users/blocked')
+       .then(res => setBlockedUsers(res.data.blockedUsers || []))
+       .catch(err => console.error("Could not fetch blocked users", err))
+       .finally(() => setFetchingBlocked(false));
+  };
+    
   // Fetch the LATEST profile from the backend every time Settings mounts
   useEffect(() => {
     let cancelled = false;
+    
+    fetchBlockedUsers();
     api.get('/auth/me')
       .then((res) => {
         if (cancelled) return;
@@ -133,6 +146,15 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
       setMessage(error.response?.data?.message || 'Error updating profile');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUnblock = async (blockedUserId: string) => {
+    try {
+      await api.delete(`/users/block/${blockedUserId}`);
+      setBlockedUsers(prev => prev.filter(u => u.id !== blockedUserId));
+    } catch (err) {
+      alert("Failed to unblock user");
     }
   };
 
@@ -347,6 +369,41 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
           </div>
         </section>
         
+        {/* Divider */}
+        <hr className="border-white/5" />
+
+        {/* Blocked Users Section */}
+        <section className="space-y-6">
+          <h3 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-4">Blocked Users</h3>
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
+             {fetchingBlocked ? (
+               <div className="text-xs text-white/40">Loading...</div>
+             ) : blockedUsers.length === 0 ? (
+               <div className="text-xs text-white/40">No blocked users.</div>
+             ) : (
+               blockedUsers.map(user => (
+                 <div key={user.id} className="flex items-center justify-between pb-3 border-b border-white/5 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden">
+                         {user.profilePic ? <img src={user.profilePic} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-white/20" />}
+                       </div>
+                       <div>
+                         <h4 className="text-sm font-bold text-gray-200">{user.displayName || user.username}</h4>
+                         <p className="text-xs text-gray-500">@{user.username}</p>
+                       </div>
+                    </div>
+                    <button 
+                       onClick={() => handleUnblock(user.id)}
+                       className="px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 text-xs text-gray-300 font-bold transition-colors"
+                    >
+                      UNBLOCK
+                    </button>
+                 </div>
+               ))
+             )}
+          </div>
+        </section>
+
         {/* Divider */}
         <hr className="border-white/5" />
 

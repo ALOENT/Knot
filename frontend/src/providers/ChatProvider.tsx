@@ -5,6 +5,7 @@ import { useSocket } from '@/providers/SocketProvider';
 import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
 import type { Message } from '@/components/ChatWindow';
+import { SOCKET_EVENTS } from '@/utils/socketEvents';
 
 export interface AuthUser {
   id: string;
@@ -27,9 +28,10 @@ interface ChatContextType {
   activeChat: ChatUser | null;
   messages: Message[];
   setActiveChat: (user: ChatUser | null) => void;
-  sendMessage: (content: string, fileUrl?: string) => void;
+  sendMessage: (content: string, fileUrl?: string, replyToId?: string) => void;
   isLoadingMessages: boolean;
   setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
+  deleteMessage: (messageId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -42,6 +44,7 @@ const ChatContext = createContext<ChatContextType>({
   sendMessage: () => {},
   isLoadingMessages: false,
   setCurrentUser: () => {},
+  deleteMessage: () => {},
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -150,8 +153,28 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     socket.on('message_confirmed', handleConfirmed);
+    
+    const handleDelivered = (data: { messageId: string; receiverId: string }) => {
+      setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, status: 'DELIVERED' } : m));
+    };
+
+    const handleRead = (data: { readerId: string }) => {
+      setMessages((prev) => prev.map(m => m.senderId === currentUser.id && (m.status === 'SENT' || m.status === 'DELIVERED') ? { ...m, status: 'READ' } : m));
+    };
+
+    const handleDeleted = (data: { messageId: string }) => {
+      setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m));
+    };
+
+    socket.on('message_delivered', handleDelivered);
+    socket.on('message_read', handleRead);
+    socket.on('message_deleted', handleDeleted);
+
     return () => {
       socket.off('message_confirmed', handleConfirmed);
+      socket.off('message_delivered', handleDelivered);
+      socket.off('message_read', handleRead);
+      socket.off('message_deleted', handleDeleted);
     };
   }, [socket, currentUser]);
 
@@ -205,7 +228,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── 3. Handle Sending Messages (Optimistic UI) ──
   const sendMessage = useCallback(
-    (content: string, fileUrl?: string) => {
+    (content: string, fileUrl?: string, replyToId?: string) => {
       if (!socket || !activeChat || !currentUser) return;
       if (currentUser.isBanned) {
         console.warn('Action blocked: user is banned');
@@ -225,6 +248,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         senderId: currentUser.id,
         receiverId: activeChat.id,
         timestamp: new Date().toISOString(),
+        status: 'SENT',
+        replyToId,
         sender: {
           id: currentUser.id,
           username: currentUser.username,
@@ -240,13 +265,24 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         receiverId: activeChat.id,
         content,
         fileUrl,
+        replyToId,
       });
     },
     [socket, activeChat, currentUser]
   );
 
+  // Delete Message function
+  const deleteMessage = useCallback((messageId: string) => {
+    // Optimistic delete
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m));
+    // Verify by calling backend
+    api.delete(`/messages/${messageId}`).catch(err => {
+      console.error('Failed to delete message', err);
+    });
+  }, []);
+
   return (
-    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages }}>
+    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage }}>
       {children}
     </ChatContext.Provider>
   );
