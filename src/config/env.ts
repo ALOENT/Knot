@@ -12,7 +12,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CLOUDINARY_CLOUD_NAME: z.string().min(1, "Cloudinary cloud name missing"),
   CLOUDINARY_API_KEY: z.string().min(1, "Cloudinary API key missing"),
-  CLOUDINARY_SECRET: z.string().min(1, "Cloudinary secret missing")
+  CLOUDINARY_SECRET: z.string().min(1, "Cloudinary secret missing"),
+  LOG_INCLUDE_IP: z.string().optional().transform(v => v === 'true').default(false),
+  TRUST_PROXY: z.string().optional().default('1'),
 });
 
 const _env = envSchema.safeParse(process.env);

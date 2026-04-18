@@ -16,9 +16,14 @@ const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const health_routes_1 = __importDefault(require("./routes/health.routes"));
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const error_middleware_1 = require("./middlewares/error.middleware");
+const message_routes_1 = __importDefault(require("./routes/message.routes"));
+const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const report_routes_1 = __importDefault(require("./routes/report.routes"));
+const upload_routes_1 = __importDefault(require("./routes/upload.routes"));
 const db_1 = require("./utils/db");
 const chat_socket_1 = require("./sockets/chat.socket");
 const app = (0, express_1.default)();
+app.set('trust proxy', env_1.env.TRUST_PROXY);
 const httpServer = http_1.default.createServer(app);
 const io = new socket_io_1.Server(httpServer, {
     cors: {
@@ -40,20 +45,33 @@ app.use((req, res, next) => {
     next();
 });
 // Rate Limiting
-const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-    message: 'Too many requests from this IP, please try again after 15 minutes',
+const generalLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 150,
+    message: 'Too many requests, please try again later.',
 });
-app.use('/api', limiter);
+const sensitiveLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 20, // 20 requests per hour for sensitive actions
+    message: 'Security threshold reached. Please try again in an hour.',
+});
+app.use('/api', generalLimiter);
+app.use('/api/auth/register', sensitiveLimiter);
+app.use('/api/auth/login', sensitiveLimiter);
+app.use('/api/reports', sensitiveLimiter);
+app.use('/api/upload', sensitiveLimiter);
 // Body Parser and Cookie Parser
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
+app.use(express_1.default.json({ limit: '10mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 app.use((0, cookie_parser_1.default)());
 // Routes
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/users', user_routes_1.default);
+app.use('/api/messages', message_routes_1.default);
+app.use('/api/admin', admin_routes_1.default);
+app.use('/api/reports', report_routes_1.default);
 app.use('/api/health', health_routes_1.default);
+app.use('/api/upload', upload_routes_1.default);
 // Global Error Handling Middleware
 app.use(error_middleware_1.errorHandler);
 const PORT = env_1.env.PORT || 5000;

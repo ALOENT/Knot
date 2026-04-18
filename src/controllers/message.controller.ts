@@ -5,8 +5,8 @@ import { z } from 'zod';
 
 const uuidSchema = z.string().uuid('Invalid ID format');
 const paginationSchema = z.object({
-  limit: z.string().optional().transform(v => Math.min(Math.max(parseInt(v || '50'), 1), 100)),
-  cursor: z.string().optional(),
+  limit: z.coerce.number().optional().default(50).transform(n => Math.min(Math.max(isNaN(n) ? 50 : n, 1), 100)),
+  cursor: z.string().optional().refine(s => !s || !Number.isNaN(new Date(s).getTime()), { message: "invalid ISO date" }),
 });
 
 /**
@@ -21,14 +21,22 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { partnerId } = req.params;
+    const partnerId = req.params.partnerId as string;
     const partnerIdValidation = uuidSchema.safeParse(partnerId);
     if (!partnerIdValidation.success) {
       return res.status(400).json({ success: false, message: 'Invalid partner ID format' });
     }
 
-    const pagination = paginationSchema.parse(req.query);
-    const { limit: take, cursor } = pagination;
+    const paginationResult = paginationSchema.safeParse(req.query);
+    if (!paginationResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid pagination parameters', 
+        errors: paginationResult.error.issues
+      });
+    }
+
+    const { limit: take, cursor } = paginationResult.data;
 
     const whereClause: any = {
       isDeleted: false,
@@ -194,7 +202,7 @@ export const getConversations = async (req: Request, res: Response, next: NextFu
 export const markAsRead = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const partnerId = req.params.partnerId;
+    const { partnerId } = req.params as { partnerId: string };
     if (!uuidSchema.safeParse(partnerId).success) {
       return res.status(400).json({ success: false, message: 'Invalid partner ID format' });
     }
@@ -223,7 +231,7 @@ export const markAsRead = async (req: Request, res: Response, next: NextFunction
 export const deleteMessage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const messageId = req.params.messageId;
+    const { messageId } = req.params as { messageId: string };
     if (!uuidSchema.safeParse(messageId).success) {
       return res.status(400).json({ success: false, message: 'Invalid message ID format' });
     }

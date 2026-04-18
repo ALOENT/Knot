@@ -17,8 +17,12 @@ exports.registerSchema = zod_1.z.object({
 });
 exports.loginSchema = zod_1.z.object({
     body: zod_1.z.object({
-        email: zod_1.z.string().email('Invalid email format'),
+        // Accept email OR username in either field for backwards compatibility
+        email: zod_1.z.string().min(1, 'Email or username is required').optional(),
+        identifier: zod_1.z.string().min(1, 'Email or username is required').optional(),
         password: zod_1.z.string().min(1, 'Password is required'),
+    }).refine((data) => data.email || data.identifier, {
+        message: 'Email or username is required',
     }),
 });
 const generateToken = (id) => {
@@ -41,6 +45,8 @@ const sendTokenResponse = (user, statusCode, res) => {
             email: user.email,
             username: user.username,
             role: user.role,
+            isVerified: user.isVerified,
+            isBanned: user.isBanned,
         },
     });
 };
@@ -76,14 +82,26 @@ const register = async (req, res, next) => {
 exports.register = register;
 const login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
-        const user = await db_1.prisma.user.findUnique({ where: { email } });
+        const { email, identifier, password } = req.body;
+        // Support both 'email' and 'identifier' fields for flexibility
+        const loginId = (identifier || email || '').trim();
+        if (!loginId) {
+            return res.status(400).json({ success: false, message: 'Email or username is required' });
+        }
+        // Lookup user by email first, then by username
+        let user = await db_1.prisma.user.findUnique({ where: { email: loginId } });
+        if (!user) {
+            user = await db_1.prisma.user.findUnique({ where: { username: loginId } });
+        }
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
         const isMatch = await bcryptjs_1.default.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+        if (user.isBanned) {
+            return res.status(403).json({ success: false, message: 'Your account has been banned. Please contact support.' });
         }
         sendTokenResponse(user, 200, res);
     }
@@ -108,11 +126,14 @@ const getMe = async (req, res, next) => {
                 id: true,
                 email: true,
                 username: true,
+                displayName: true,
                 bio: true,
                 profilePic: true,
                 banner: true,
                 isOnline: true,
                 role: true,
+                isVerified: true,
+                isBanned: true,
                 privacySettings: true,
             },
         });

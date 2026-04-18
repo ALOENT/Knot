@@ -20,6 +20,7 @@ import { prisma } from './utils/db';
 import { initChatSocket } from './sockets/chat.socket';
 
 const app = express();
+app.set('trust proxy', env.TRUST_PROXY);
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: {

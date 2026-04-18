@@ -16,12 +16,19 @@ export const uploadFile = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const { buffer, originalname, mimetype } = req.file;
+    const { buffer, originalname, mimetype: multerMime } = req.file;
 
-    // Security - Basic MIME-type check (Security Audit item)
+    // Security - Content-based MIME-type check (Security Audit item)
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-    if (!allowedMimeTypes.includes(mimetype)) {
-      return res.status(400).json({ success: false, message: 'Invalid file type' });
+    
+    // Dynamic import for file-type (ESM)
+    const { fromBuffer } = await (eval('import("file-type")') as Promise<typeof import('file-type')>);
+    const detectedType = await fromBuffer(buffer);
+    
+    const finalMime = detectedType ? detectedType.mime : multerMime;
+
+    if (!allowedMimeTypes.includes(finalMime)) {
+      return res.status(400).json({ success: false, message: 'Invalid file content type' });
     }
 
     // Use upload_stream for memory storage adapter with robust piping

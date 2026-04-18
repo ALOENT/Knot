@@ -144,7 +144,7 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     const validation = updateProfileSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({ success: false, message: validation.error.errors[0].message });
+      return res.status(400).json({ success: false, message: validation.error.issues[0].message });
     }
 
     const { username, displayName, bio, profilePic } = validation.data;

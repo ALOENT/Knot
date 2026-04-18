@@ -13,7 +13,12 @@ const envSchema = zod_1.z.object({
     ADMIN_EMAIL: zod_1.z.string().email("ADMIN_EMAIL must be a valid email"),
     PORT: zod_1.z.string().optional().default('5000'),
     CLIENT_URL: zod_1.z.string().url().optional(),
-    NODE_ENV: zod_1.z.enum(['development', 'production', 'test']).default('development')
+    NODE_ENV: zod_1.z.enum(['development', 'production', 'test']).default('development'),
+    CLOUDINARY_CLOUD_NAME: zod_1.z.string().min(1, "Cloudinary cloud name missing"),
+    CLOUDINARY_API_KEY: zod_1.z.string().min(1, "Cloudinary API key missing"),
+    CLOUDINARY_SECRET: zod_1.z.string().min(1, "Cloudinary secret missing"),
+    LOG_INCLUDE_IP: zod_1.z.string().optional().transform(v => v === 'true').default(false),
+    TRUST_PROXY: zod_1.z.string().optional().default('1'),
 });
 const _env = envSchema.safeParse(process.env);
 if (!_env.success) {

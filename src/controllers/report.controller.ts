@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 const reportSchema = z.object({
   reportedUserId: z.string().uuid('Invalid user ID format'),
-  reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
+  reason: z.string().trim().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
 });
 
 /**
@@ -24,7 +24,7 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
     if (!validation.success) {
       return res.status(400).json({ 
         success: false, 
-        message: validation.error.errors[0].message 
+        message: validation.error.issues[0].message 
       });
     }
 
