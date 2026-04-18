@@ -112,10 +112,19 @@ export default function DashboardPage() {
   }, [lastReceivedMessage, currentUser]);
 
   // ── Handlers ──
-  // Handle mobile view side-effect when chat is selected
+  // Handle selective view side-effects when chat is selected
   useEffect(() => {
-    if (activeChat && isMobile) {
-      setShowRightPanel(true);
+    if (activeChat) {
+      if (isMobile) {
+        setShowRightPanel(true);
+      }
+      
+      // Reset unread count for the newly active chat
+      setChatUsers((prev) => {
+        const hasUnread = prev.find(u => u.id === activeChat.id && (u.unreadCount || 0) > 0);
+        if (!hasUnread) return prev; // Avoid unnecessary re-renders if count is already 0
+        return prev.map((u) => (u.id === activeChat.id ? { ...u, unreadCount: 0 } : u));
+      });
     }
   }, [activeChat, isMobile]);
 
