@@ -98,15 +98,6 @@ export const initChatSocket = (io: Server) => {
         logger.error(`Error marking messages as read:`, error);
       }
     });
-      
-      // Admin Ghost Mode: Don't broadcast if admin explicitly joins a room
-      if (userRole !== 'ADMIN') {
-        socket.to(roomId).emit('user_joined_chat', { userId, roomId });
-      } else {
-        logger.info(`Admin ${userId} joined room ${roomId} in ghost mode`);
-      }
-    });
-
     // Send Message Event
     socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; replyToId?: string }) => {
       try {

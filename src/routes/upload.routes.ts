@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { uploadFile } from '../controllers/upload.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { protect } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -36,6 +36,6 @@ const uploadLimiter = rateLimit({
   message: { success: false, message: 'Too many upload requests. Please try again later.' }
 });
 
-router.post('/', authenticate, uploadLimiter, upload.single('file'), uploadFile);
+router.post('/', protect, uploadLimiter, upload.single('file'), uploadFile);
 
 export default router;
