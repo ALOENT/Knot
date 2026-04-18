@@ -112,57 +112,36 @@ export default function DashboardPage() {
   }, [lastReceivedMessage, currentUser]);
 
   // ── Handlers ──
-  const handleSelectChat = useCallback((user: ChatUser) => {
-    setActiveChat(user);
-    setShowRightPanel(true);
-    // Reset unread count for this chat
-    setChatUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, unreadCount: 0 } : u)),
-    );
-  }, [setActiveChat]);
-
-  const handleMessageSearchedUser = useCallback((user: SearchResult) => {
-    // Switch back to messages tab and make them active
-    setActiveTab('messages');
-    setActiveChat({
-      id: user.id,
-      username: user.username,
-      profilePic: user.profilePic,
-      isOnline: user.isOnline,
-    });
-    setShowRightPanel(true);
-  }, [setActiveChat]);
-
-  const handleSendMessage = useCallback(
-    (content: string, fileUrl?: string, replyToId?: string) => {
-      sendMessage(content, fileUrl, replyToId);
-      if (activeChat) {
-        const preview = content ? content.slice(0, 50) : 'Attachment';
-        const time = new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-        setChatUsers((prev) => {
-          const idx = prev.findIndex((u) => u.id === activeChat.id);
-          if (idx === -1) return prev;
-          const updated = [...prev];
-          const user = {
-            ...updated[idx],
-            lastMessage: preview,
-            lastMessageTime: time,
-          };
-          updated.splice(idx, 1);
-          return [user, ...updated];
-        });
-      }
-    },
-    [sendMessage, activeChat],
-  );
+  // Handle mobile view side-effect when chat is selected
+  useEffect(() => {
+    if (activeChat && isMobile) {
+      setShowRightPanel(true);
+    }
+  }, [activeChat, isMobile]);
 
   const handleBack = useCallback(() => {
     setShowRightPanel(false);
     setActiveChat(null);
   }, [setActiveChat]);
+
+  const handleMessageSearchedUser = (result: SearchResult) => {
+    // Check if user is already in chatUsers, if not add them
+    const existing = chatUsers.find(u => u.id === result.id);
+    const userToSelect = existing || {
+      id: result.id,
+      username: result.username,
+      displayName: result.displayName,
+      profilePic: result.profilePic,
+      isVerified: result.isVerified
+    };
+    
+    if (!existing) {
+      setChatUsers(prev => [userToSelect as ChatUser, ...prev]);
+    }
+    
+    setActiveChat(userToSelect as ChatUser);
+    setActiveTab('messages');
+  };
 
   const handleLogout = async () => {
     try {
@@ -192,8 +171,6 @@ export default function DashboardPage() {
         return (
           <ChatList
             users={chatUsers}
-            activeChatId={activeChat?.id ?? null}
-            onSelectChat={handleSelectChat}
           />
         );
       case 'search':
@@ -288,13 +265,7 @@ export default function DashboardPage() {
                   <SettingsSection onBack={handleBack} />
                 ) : activeChat && currentUser ? (
                   <ChatWindow
-                    activeUser={activeChat}
-                    messages={messages}
-                    currentUserId={currentUser.id}
-                    onSendMessage={handleSendMessage}
-                    onDeleteMessage={deleteMessage}
                     onBack={handleBack}
-                    isLoadingMessages={isLoadingMessages}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4 px-6">

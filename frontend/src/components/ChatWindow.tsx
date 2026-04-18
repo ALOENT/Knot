@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
+import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
 import type { ChatUser } from '@/components/ChatList';
 import UserProfilePanel from '@/components/UserProfilePanel';
@@ -42,13 +43,7 @@ export interface Message {
 }
 
 interface ChatWindowProps {
-  activeUser: ChatUser | null;
-  messages: Message[];
-  currentUserId: string;
-  onSendMessage: (content: string, fileUrl?: string, replyToId?: string) => void;
-  onDeleteMessage?: (id: string) => void;
   onBack?: () => void;
-  isLoadingMessages?: boolean;
 }
 
 /* ════════════════════════════════════════════
@@ -96,13 +91,7 @@ function isImageFile(url: string | null | undefined): boolean {
    ════════════════════════════════════════════ */
 
 export default function ChatWindow({
-  activeUser,
-  messages,
-  currentUserId,
-  onSendMessage,
-  onDeleteMessage,
   onBack,
-  isLoadingMessages,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -126,7 +115,17 @@ export default function ChatWindow({
   const [messageMenuOpenId, setMessageMenuOpenId] = useState<string | null>(null);
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
 
-  const { privacyModeEnabled } = useChat();
+  const { 
+    activeChat: activeUser, 
+    messages, 
+    currentUser, 
+    sendMessage: onSendMessage, 
+    deleteMessage: onDeleteMessage, 
+    isLoadingMessages,
+    privacyModeEnabled 
+  } = useChat();
+  
+  const currentUserId = currentUser?.id;
   const isOnline = privacyModeEnabled ? false : (activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false);
   const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
 
