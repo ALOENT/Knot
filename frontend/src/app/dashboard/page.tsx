@@ -214,7 +214,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-full overflow-hidden flex flex-col md:flex-row bg-[#0a0a0c]">
+    <div className="fixed inset-0 h-dvh w-full overflow-hidden flex flex-col md:flex-row bg-[#0a0a0c]">
       {/* ── Sidebar (Desktop: Left, Mobile: Bottom) ── */}
       <Sidebar 
         activeTab={activeTab} 
@@ -230,7 +230,7 @@ export default function DashboardPage() {
       />
 
       {/* ── Main Content Area ── */}
-      <main className="flex-1 h-full relative overflow-hidden md:pl-[var(--sidebar-w)] pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0">
+      <main className="flex-1 h-full relative overflow-hidden md:pl-(--sidebar-w) pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0">
         <div className="flex h-full w-full relative">
           
           {/* ── Left Content Pane (List/Search) ── */}
@@ -241,7 +241,7 @@ export default function DashboardPage() {
               opacity: (showRightPanel && isMobile) ? 0 : 1
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={`absolute inset-0 md:relative md:inset-auto h-full shrink-0 z-10 w-full md:w-[var(--chat-list-w)] ${
+            className={`absolute inset-0 md:relative md:inset-auto h-full shrink-0 z-10 w-full md:w-(--chat-list-w) ${
               showRightPanel ? (isMobile ? 'pointer-events-none' : 'invisible md:visible') : 'visible'
             }`}
             style={{

@@ -100,6 +100,7 @@ export default function ChatWindow({
   messages,
   currentUserId,
   onSendMessage,
+  onDeleteMessage,
   onBack,
   isLoadingMessages,
 }: ChatWindowProps) {
