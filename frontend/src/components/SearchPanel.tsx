@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, UserPlus, MessageSquare } from 'lucide-react';
+import { Search, UserPlus, MessageSquare, BadgeCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import debounce from 'lodash.debounce';
 
 export interface SearchResult {
   id: string;
   username: string;
+  displayName?: string | null;
   email: string;
   profilePic: string | null;
   isOnline: boolean;
+  isVerified?: boolean;
   bio: string | null;
 }
 
@@ -135,11 +137,11 @@ export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanel
                   {user.profilePic ? (
                     <img
                       src={user.profilePic}
-                      alt={user.username}
+                      alt={user.displayName || user.username}
                       className="w-full h-full rounded-full object-cover"
                     />
                   ) : (
-                    user.username.charAt(0).toUpperCase()
+                    (user.displayName || user.username).charAt(0).toUpperCase()
                   )}
                 </div>
                 {user.isOnline && (
@@ -147,7 +149,11 @@ export default function SearchPanel({ onMessageUser, onAddContact }: SearchPanel
                 )}
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-200">{user.username}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-medium text-gray-200">{user.displayName || user.username}</span>
+                  {user.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400/20" />}
+                </div>
+                {user.displayName && <span className="text-[10px] text-gray-500 font-mono tracking-tight -mt-0.5">@{user.username}</span>}
                 {user.bio ? (
                   <span className="text-xs text-gray-500 truncate max-w-[150px]">{user.bio}</span>
                 ) : (
