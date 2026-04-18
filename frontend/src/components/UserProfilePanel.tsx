@@ -31,20 +31,42 @@ export default function UserProfilePanel({ userId, isOpen, onClose }: UserProfil
 
   useEffect(() => {
     if (isOpen && userId) {
+      setProfile(null);
       setLoading(true);
       setError('');
-      api.get(`/users/${userId}`)
+      const controller = new AbortController();
+
+      api.get(`/users/${userId}`, { signal: controller.signal })
         .then(res => {
-          setProfile(res.data.user);
+          if (!controller.signal.aborted) {
+            setProfile(res.data.user);
+          }
         })
         .catch(err => {
-          setError(err.response?.data?.message || 'Failed to load profile');
+          if (!controller.signal.aborted) {
+            setError(err.response?.data?.message || 'Failed to load profile');
+          }
         })
         .finally(() => {
-          setLoading(false);
+          if (!controller.signal.aborted) {
+            setLoading(false);
+          }
         });
+
+      return () => {
+        controller.abort();
+      };
     }
   }, [isOpen, userId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   return (
     <AnimatePresence>
@@ -67,6 +89,7 @@ export default function UserProfilePanel({ userId, isOpen, onClose }: UserProfil
             <div className="absolute top-4 right-4 z-10">
               <button
                 onClick={onClose}
+                aria-label="Close user panel"
                 className="btn-icon h-8 w-8 bg-black/40 hover:bg-black/60 text-white"
               >
                 <X className="w-5 h-5" />

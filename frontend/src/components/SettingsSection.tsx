@@ -59,20 +59,22 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
       }
     };
   }, []);
-
-  const fetchBlockedUsers = () => {
-    setFetchingBlocked(true);
-    api.get('/users/blocked')
-       .then(res => setBlockedUsers(res.data.blockedUsers || []))
-       .catch(err => console.error("Could not fetch blocked users", err))
-       .finally(() => setFetchingBlocked(false));
-  };
-    
   // Fetch the LATEST profile from the backend every time Settings mounts
   useEffect(() => {
     let cancelled = false;
     
-    fetchBlockedUsers();
+    setFetchingBlocked(true);
+    api.get('/users/blocked')
+       .then(res => {
+         if (!cancelled) setBlockedUsers(res.data.blockedUsers || []);
+       })
+       .catch(err => {
+         if (!cancelled) console.error("Could not fetch blocked users", err);
+       })
+       .finally(() => {
+         if (!cancelled) setFetchingBlocked(false);
+       });
+
     api.get('/auth/me')
       .then((res) => {
         if (cancelled) return;
@@ -385,7 +387,7 @@ export default function SettingsSection({ onBack }: SettingsSectionProps) {
                  <div key={user.id} className="flex items-center justify-between pb-3 border-b border-white/5 last:border-0 last:pb-0">
                     <div className="flex items-center gap-3">
                        <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden">
-                         {user.profilePic ? <img src={user.profilePic} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-white/20" />}
+                         {user.profilePic ? <img src={user.profilePic} alt={`Profile picture of ${user.displayName || user.username}`} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-white/20" />}
                        </div>
                        <div>
                          <h4 className="text-sm font-bold text-gray-200">{user.displayName || user.username}</h4>

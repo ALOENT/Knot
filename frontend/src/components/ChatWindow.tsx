@@ -131,12 +131,25 @@ export default function ChatWindow({
   // Check if blocked by me
   useEffect(() => {
     if (!activeUser) return;
+    const controller = new AbortController();
     setIsBlockedByMe(false);
-    api.get('/users/blocked').then(res => {
-      if (res.data?.blockedUsers?.some((u: any) => u.id === activeUser.id)) {
-        setIsBlockedByMe(true);
-      }
-    }).catch(err => console.error("Failed fetching blocked status", err));
+    api.get('/users/blocked', { signal: controller.signal })
+      .then(res => {
+        if (!controller.signal.aborted) {
+          if (res.data?.blockedUsers?.some((u: any) => u.id === activeUser.id)) {
+            setIsBlockedByMe(true);
+          }
+        }
+      })
+      .catch(err => {
+        if (!controller.signal.aborted) {
+          console.error("Failed fetching blocked status", err);
+        }
+      });
+      
+    return () => {
+      controller.abort();
+    };
   }, [activeUser]);
 
   const handleBlockUser = async () => {
