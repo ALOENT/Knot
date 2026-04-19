@@ -865,13 +865,13 @@ export default function ChatWindow({
                     </p>
                   )}
                   {!msg.isDeleted && msg.fileUrl && (() => {
-                    const fileUrl = msg.fileUrl;
-                    const displayName = deriveAttachmentDisplayName(fileUrl, msg.fileName);
+                    const fileUrl = msg.fileUrl!;
+                    const displayName = deriveAttachmentDisplayName(fileUrl, msg.fileName || null);
                     const previewUrl = fileUrl;
                     const downloadTarget = {
                       id: msg.id,
                       fileUrl,
-                      fileName: msg.fileName,
+                      fileName: msg.fileName || null,
                     };
                     const showDl = receiverMayDownloadAttachment(msg, currentUserId);
                     const metaLine = formatAttachmentMetaLine(
@@ -888,7 +888,7 @@ export default function ChatWindow({
                         title: displayName,
                         id: msg.id,
                         fileUrl,
-                        fileName: msg.fileName,
+                        fileName: msg.fileName || null,
                         showSave: showDl,
                       });
                     };
@@ -962,56 +962,55 @@ export default function ChatWindow({
                     const showPdfThumb = !!pdfThumb && !thumbFailed;
 
                     return (
-                      <div className="mt-2 rounded-xl border border-white/5 bg-black/20 relative overflow-visible">
+                      <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/30 relative overflow-hidden min-w-[280px] max-w-full shadow-lg">
                         {showPdfThumb ? (
-                          <div className="rounded-t-xl overflow-hidden bg-zinc-950">
+                          <div className="h-24 overflow-hidden bg-zinc-950 border-b border-white/5 relative">
                             <img
-                              src={pdfThumb}
+                              src={pdfThumb!}
                               alt=""
                               loading="lazy"
-                              className="w-full max-h-32 object-cover object-top"
+                              className="w-full h-full object-cover object-top opacity-80"
                               onError={() =>
                                 setPdfThumbFailedIds((prev) => ({ ...prev, [msg.id]: true }))
                               }
                             />
+                            <div className="absolute top-2 left-2 bg-red-600/90 text-[9px] font-bold text-white px-1.5 py-0.5 rounded shadow-sm">
+                              PDF
+                            </div>
                           </div>
-                        ) : (
-                          <div className="rounded-t-xl flex items-center justify-center h-24 bg-gradient-to-br from-red-600/25 to-zinc-950 border-b border-white/5">
-                            <FileText className="h-10 w-10 text-red-400/90" strokeWidth={1.25} />
+                        ) : null}
+                        
+                        <div className="p-2.5 px-3 flex items-center gap-3">
+                          <div className="h-9 w-9 shrink-0 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                            <FileText className="h-5 w-5 text-red-500" strokeWidth={2} />
                           </div>
-                        )}
-                        <div className={`p-3 pt-2.5 relative ${showDl ? 'pr-11' : ''}`}>
-                          <p className="text-[13px] font-semibold text-gray-100 truncate" title={displayName}>
-                            {displayName}
-                          </p>
-                          {metaLine ? (
-                            <p className="text-[10px] text-zinc-500 mt-1">{metaLine}</p>
-                          ) : null}
-                          {showDl ? (
-                            <>
-                              <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
-                                Download to open in your PDF or document app.
-                              </p>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-bold text-white truncate pr-2" title={displayName}>
+                              {displayName}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">
+                              {metaLine || 'Document'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {showDl && (
                               <button
                                 type="button"
                                 onClick={runDownload}
-                                className="mt-2.5 w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
+                                title="Download"
+                                className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
                               >
                                 <Download className="h-4 w-4" />
-                                Download
                               </button>
-                              <div className="absolute top-2.5 right-2 z-20">
-                                <button
-                                  type="button"
-                                  aria-label="More"
-                                  onClick={openDotsMenu}
-                                  className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </>
-                          ) : null}
+                            )}
+                            <button
+                              type="button"
+                              onClick={openDotsMenu}
+                              className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1240,7 +1239,7 @@ export default function ChatWindow({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
+            className="fixed inset-0 z-100 flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
             role="dialog"
             aria-modal="true"
             aria-label="Image preview"
@@ -1393,13 +1392,13 @@ export default function ChatWindow({
         createPortal(
           <>
             <div
-              className="fixed inset-0 z-[85]"
+              className="fixed inset-0 z-85"
               aria-hidden
               onMouseDown={() => setAttachmentMenu(null)}
             />
             <div
               role="menu"
-              className="fixed z-[90] min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
+              className="fixed z-90 min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
               style={{ top: attachmentMenu.top, left: attachmentMenu.left }}
               onMouseDown={(e) => e.stopPropagation()}
             >
