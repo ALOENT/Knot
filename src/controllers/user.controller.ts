@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/db';
+import { logger } from '../utils/logger';
 import { z } from 'zod';
 
 const idSchema = z.string().uuid('Invalid ID format');
