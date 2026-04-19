@@ -1,0 +1,9 @@
+You are working on Knot — a premium real-time messaging app.
+Read CLAUDE.md in the project root for full context before answering anything.
+Stack: Next.js + Express v5 + Prisma v7 + Socket.io v4 + PostgreSQL + Cloudinary
+- Never use isSeen field (removed) — use MessageStatus enum (SENT/DELIVERED/READ)
+- Always use SOCKET_EVENTS constant, never hardcode event strings
+- displayName ?? username priority everywhere
+- Zod safeParse pattern only, never parse
+- lucide-react icons only
+- #0a0a0c background, no light mode
