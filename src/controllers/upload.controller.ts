@@ -71,9 +71,9 @@ export const uploadFile = async (req: Request, res: Response) => {
     let attachmentPages: number | null = null;
     if (detectedType.mime === 'application/pdf') {
       try {
-        const pdfParse = (await import('pdf-parse')).default as (
-          data: Buffer,
-        ) => Promise<{ numpages?: number }>;
+        const pdfParseMod = await import('pdf-parse');
+        const pdfParse = (pdfParseMod as unknown as { default: (data: Buffer) => Promise<{ numpages?: number }> })
+          .default;
         const meta = await pdfParse(buffer);
         const n = meta?.numpages;
         attachmentPages = typeof n === 'number' && n > 0 ? n : null;
