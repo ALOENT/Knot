@@ -164,8 +164,11 @@ function triggerBrowserDownload(blob: Blob, filename: string): void {
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  URL.revokeObjectURL(u);
+  // Defer revoke + DOM cleanup so the browser can start the download without racing the blob URL teardown.
+  window.setTimeout(() => {
+    URL.revokeObjectURL(u);
+    a.remove();
+  }, 2500);
 }
 
 /**

@@ -230,7 +230,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const handleDeleted = (data: { messageId: string }) => {
-      setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: null } : m));
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: undefined }
+            : m,
+        ),
+      );
     };
 
     socket.on('message_delivered', handleDelivered);
@@ -356,8 +362,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const originalMessage = messages.find(m => m.id === messageId);
     if (!originalMessage) return;
 
-    setMessages(prev => 
-      prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: null } : m)
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId
+          ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: undefined }
+          : m,
+      ),
     );
       
     // Verify by calling backend
