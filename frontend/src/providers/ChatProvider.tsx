@@ -37,6 +37,7 @@ interface ChatContextType {
   blockedUsers: AuthUser[];
   blockedByIDs: string[];
   isBlocked: (userId: string) => boolean;
+  isBlockedByMe: (userId: string) => boolean;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -55,6 +56,7 @@ const ChatContext = createContext<ChatContextType>({
   blockedUsers: [],
   blockedByIDs: [],
   isBlocked: () => false,
+  isBlockedByMe: () => false,
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -139,6 +141,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     return iBlocked || theyBlocked;
   }, [blockedUsers, blockedByIDs]);
 
+  const isBlockedByMe = useCallback((userId: string) => {
+    return blockedUsers.some(u => u.id === userId);
+  }, [blockedUsers]);
+
   // ── 1. Listen for incoming messages from OTHER users ──
   useEffect(() => {
     if (!socket || !currentUser) return;
@@ -206,20 +212,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const handleRead = (data: { readerId?: string, messageIds?: string[], partnerId?: string }) => {
-      setMessages((prev) => prev.map(m => {
-        // If we have specific message IDs, use them
-        if (data.messageIds && data.messageIds.includes(m.id)) {
-          return { ...m, status: 'READ' };
+      setMessages((prev) => {
+        // 1. If we have specific message IDs, only update those
+        if (data.messageIds && data.messageIds.length > 0) {
+          return prev.map(m => data.messageIds!.includes(m.id) ? { ...m, status: 'READ' } : m);
         }
         
-        // Fallback to partner-based bulk update if no specific IDs (older backend version compatibility)
+        // 2. Fallback to partner-based bulk update only when no specific IDs (older backend version compatibility)
         const partnerId = data.partnerId || data.readerId;
-        if (partnerId && m.senderId === currentUser?.id && m.receiverId === partnerId && (m.status === 'SENT' || m.status === 'DELIVERED')) {
-          return { ...m, status: 'READ' };
+        if (partnerId) {
+          return prev.map(m => (m.senderId === currentUser?.id && m.receiverId === partnerId && (m.status === 'SENT' || m.status === 'DELIVERED')) ? { ...m, status: 'READ' } : m);
         }
         
-        return m;
-      }));
+        return prev;
+      });
     };
 
     const handleDeleted = (data: { messageId: string }) => {
@@ -376,7 +382,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       setPrivacyModeEnabled,
       blockedUsers,
       blockedByIDs,
-      isBlocked
+      isBlocked,
+      isBlockedByMe
     }}>
       {children}
     </ChatContext.Provider>

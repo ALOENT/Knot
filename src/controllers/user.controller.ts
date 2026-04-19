@@ -239,12 +239,10 @@ export const getUserProfile = async (req: Request, res: Response) => {
       user.bio = null;
       user.banner = null;
       user.isOnline = false;
-      user.lastSeen = '0'; // Or some placeholder
+      user.lastSeen = null; // Fix: use null for never seen (Issue 6)
     }
 
-    res.status(200).json({ success: true, user });
-
-    res.status(200).json({ success: true, user });
+    return res.status(200).json({ success: true, user });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error while fetching profile' });
   }
@@ -374,16 +372,34 @@ export const getWarnings = async (req: Request, res: Response) => {
 export const dismissWarning = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    const warningId = req.params.id as string;
     if (!userId) return res.status(401).json({ success: false, message: 'Authentication required' });
 
-    await prisma.warning.update({
-      where: { id: warningId, userId },
+    const warningId = req.params.id as string;
+    
+    // Validate ID (Issue 7)
+    try {
+      idSchema.parse(warningId);
+    } catch (e: any) {
+      return res.status(400).json({ success: false, message: e.message || 'Invalid warning ID' });
+    }
+
+    // Ownership-safe update using updateMany
+    const updateResult = await prisma.warning.updateMany({
+      where: { 
+        id: warningId, 
+        userId,
+        isDismissed: false
+      },
       data: { isDismissed: true }
     });
 
+    if (updateResult.count === 0) {
+      return res.status(404).json({ success: false, message: 'Warning not found or already dismissed' });
+    }
+
     res.status(200).json({ success: true, message: 'Warning dismissed' });
-  } catch (error) {
+  } catch (error: any) {
+    logger.error('Error dismissing warning:', error);
     res.status(500).json({ success: false, message: 'Failed to dismiss warning' });
   }
 };

@@ -145,7 +145,8 @@ export default function ChatWindow({
     deleteMessage: onDeleteMessage, 
     isLoadingMessages,
     privacyModeEnabled,
-    isBlocked
+    isBlocked,
+    isBlockedByMe: checkIsBlockedByMe
   } = useChat();
   
   const currentUserId = currentUser?.id;
@@ -246,6 +247,13 @@ export default function ChatWindow({
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  // Initialize isBlockedByMe from context/server state
+  useEffect(() => {
+    if (activeUser) {
+      setIsBlockedByMe(checkIsBlockedByMe(activeUser.id));
+    }
+  }, [activeUser, checkIsBlockedByMe]);
 
   // Handle typing indicator emission
   const handleInputChange = useCallback(

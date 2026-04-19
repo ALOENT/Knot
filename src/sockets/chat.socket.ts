@@ -105,8 +105,9 @@ export const initChatSocket = (io: Server) => {
         });
         
         // Also broadcast to other rooms the sender/receiver might be in (e.g. ChatWindow room)
+        // We use .except(data.senderId) to ensure they don't get the same event twice
         const roomId = getRoomId(userId, data.senderId);
-        socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_READ, {
+        socket.to(roomId).except(data.senderId).emit(SOCKET_EVENTS.MESSAGE_READ, {
           messageIds,
           partnerId: userId
         });

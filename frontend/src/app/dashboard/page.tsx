@@ -184,7 +184,7 @@ export default function DashboardPage() {
     if (!currentWarning) return;
     try {
       await api.put(`/users/warnings/${currentWarning.id}/dismiss`);
-      const remaining = warnings.slice(1);
+      const remaining = warnings.filter(w => w.id !== currentWarning.id);
       setWarnings(remaining);
       setCurrentWarning(remaining.length > 0 ? remaining[0] : null);
     } catch (err) {

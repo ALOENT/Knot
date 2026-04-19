@@ -186,8 +186,20 @@ export const warnUser = async (req: Request, res: Response, next: NextFunction) 
     const userId = req.params.userId as string;
     const { message } = req.body;
 
+    // Validate UUID format (Issue 5 - reuse regex from resolveReport)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+    }
+
     if (!message) {
       return res.status(400).json({ success: false, message: 'Warning message is required' });
+    }
+
+    // Verify target user exists (Issue 4)
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     const warning = await prisma.warning.create({
