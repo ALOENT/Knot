@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, Download, FileText } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
@@ -104,11 +105,37 @@ function deriveAttachmentDisplayName(fileUrl: string, fileName?: string | null):
   }
 }
 
-/** Cloudinary image deliveries use /image/upload/; also allow common extensions in URL. */
+/** PDFs (and other docs) may still use an `/image/upload/` path on Cloudinary — never treat those as photos. */
+function isChatDocumentAttachment(url: string): boolean {
+  const u = url.toLowerCase();
+  const path = u.split('?')[0];
+  if (path.endsWith('.pdf')) return true;
+  if (['/raw/upload/', '/video/upload/', '/auto/upload/'].some((s) => u.includes(s))) return true;
+  return ['.doc', '.docx', '.txt', '.zip', '.ppt', '.pptx', '.xls', '.xlsx'].some((ext) =>
+    path.endsWith(ext),
+  );
+}
+
+/** True only for real image deliveries (inline preview uses public Cloudinary URL). */
 function isChatImageAttachment(url: string | null | undefined): boolean {
   if (!url) return false;
+  if (isChatDocumentAttachment(url)) return false;
   if (url.includes('/image/upload/')) return true;
   return isImageFile(url);
+}
+
+/** WhatsApp-style first page of a PDF (Cloudinary transformation). Falls back via onError in UI. */
+function cloudinaryPdfCoverThumbnailUrl(fileUrl: string): string | null {
+  if (!fileUrl.toLowerCase().includes('res.cloudinary.com')) return null;
+  if (!isChatDocumentAttachment(fileUrl) || !fileUrl.toLowerCase().includes('.pdf')) return null;
+  const lower = fileUrl.toLowerCase();
+  if (lower.includes('/raw/upload/')) {
+    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_300,h_380,c_fill,q_auto,f_jpg/');
+  }
+  if (lower.includes('/image/upload/')) {
+    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_300,h_380,c_fill,q_auto,f_jpg/');
+  }
+  return null;
 }
 
 async function saveAttachmentToDevice(
@@ -209,7 +236,13 @@ export default function ChatWindow({
     fileUrl: string;
     fileName?: string | null;
   } | null>(null);
-  const [attachmentMenuForId, setAttachmentMenuForId] = useState<string | null>(null);
+  /** Fixed-position portal so menu is not clipped by scroll parents and closes reliably. */
+  const [attachmentMenu, setAttachmentMenu] = useState<{
+    top: number;
+    left: number;
+    downloadTarget: Pick<Message, 'id' | 'fileUrl'> & { fileName?: string | null };
+  } | null>(null);
+  const [pdfThumbFailedIds, setPdfThumbFailedIds] = useState<Record<string, boolean>>({});
 
   const { 
     activeChat: activeUser, 
@@ -317,23 +350,12 @@ export default function ChatWindow({
         setIsMenuOpen(false);
         setShowEmojiPicker(false);
         setImagePreview(null);
-        setAttachmentMenuForId(null);
+        setAttachmentMenu(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
-
-  useEffect(() => {
-    if (!attachmentMenuForId) return;
-    const close = (e: MouseEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el?.closest?.('[data-attachment-menu-root]')) return;
-      setAttachmentMenuForId(null);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [attachmentMenuForId]);
 
   // Re-render after local midnight so date labels stay aligned with the real calendar
   useEffect(() => {
@@ -717,7 +739,7 @@ export default function ChatWindow({
                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] md:max-w-[70%] group relative px-4 py-3 text-[14px] leading-relaxed shadow-sm transition-all duration-200 ${
+                  className={`max-w-[85%] md:max-w-[70%] group relative px-4 py-3 text-[14px] leading-relaxed shadow-sm transition-all duration-200 overflow-visible ${
                     isMine
                       ? 'bg-blue-600/15 text-blue-50 border border-blue-500/20 rounded-2xl rounded-tr-sm'
                       : 'bg-[#151518] text-gray-200 border border-white/5 rounded-2xl rounded-tl-sm'
@@ -758,14 +780,16 @@ export default function ChatWindow({
                   {!msg.isDeleted && msg.fileUrl && (() => {
                     const fileUrl = msg.fileUrl;
                     const displayName = deriveAttachmentDisplayName(fileUrl, msg.fileName);
-                    const imageSrc =
-                      isChatImageAttachment(fileUrl) && !msg.id.startsWith('temp-')
-                        ? attachmentStreamUrl(msg.id, 'inline')
-                        : fileUrl;
+                    const previewUrl = fileUrl;
+                    const downloadTarget = {
+                      id: msg.id,
+                      fileUrl,
+                      fileName: msg.fileName,
+                    };
                     const openImagePreview = () => {
-                      setAttachmentMenuForId(null);
+                      setAttachmentMenu(null);
                       setImagePreview({
-                        src: imageSrc,
+                        src: previewUrl,
                         title: displayName,
                         id: msg.id,
                         fileUrl,
@@ -773,99 +797,110 @@ export default function ChatWindow({
                       });
                     };
                     const onDownload = async () => {
-                      setAttachmentMenuForId(null);
+                      setAttachmentMenu(null);
                       try {
                         await saveAttachmentToDevice(msg);
                       } catch {
                         alert('Could not download this file. Please try again.');
                       }
                     };
-                    return isChatImageAttachment(fileUrl) ? (
-                      <div className="mt-2 rounded-xl overflow-hidden border border-white/5 bg-black/20 relative group/att">
-                        <button
-                          type="button"
-                          onClick={openImagePreview}
-                          className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-xl"
-                        >
-                          <img
-                            src={imageSrc}
-                            alt={displayName}
-                            className="max-h-60 w-full object-cover cursor-zoom-in"
-                          />
-                        </button>
-                        <div className="absolute top-1.5 right-1.5 z-10" data-attachment-menu-root>
-                          <button
-                            type="button"
-                            aria-label="Attachment options"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAttachmentMenuForId((id) => (id === msg.id ? null : msg.id));
-                            }}
-                            className="h-8 w-8 rounded-full bg-black/55 border border-white/10 flex items-center justify-center text-gray-200 hover:bg-black/70 backdrop-blur-sm"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                          {attachmentMenuForId === msg.id && (
-                            <div className="absolute right-0 mt-1 min-w-[160px] py-1 rounded-xl bg-[#141418] border border-white/10 shadow-xl">
-                              <button
-                                type="button"
-                                onClick={onDownload}
-                                className="w-full px-3 py-2 text-left text-xs font-medium text-gray-200 hover:bg-white/5 flex items-center gap-2"
-                              >
-                                <Download className="h-3.5 w-3.5 shrink-0" />
-                                Save to device
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-2 rounded-xl border border-white/5 bg-black/20 p-3 relative">
-                        <div className="flex items-start gap-3 pr-10">
-                          <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                            <FileText className="h-5 w-5 text-blue-400" />
+                    const openDotsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const menuWidth = 176;
+                      const left = Math.max(
+                        10,
+                        Math.min(r.right - menuWidth, window.innerWidth - menuWidth - 10),
+                      );
+                      setAttachmentMenu((cur) =>
+                        cur?.downloadTarget.id === msg.id
+                          ? null
+                          : { top: r.bottom + 6, left, downloadTarget },
+                      );
+                    };
+
+                    if (isChatImageAttachment(fileUrl)) {
+                      return (
+                        <div className="mt-2 rounded-xl border border-white/5 bg-black/20 relative z-0 overflow-visible">
+                          <div className="rounded-xl overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={openImagePreview}
+                              className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                            >
+                              <img
+                                src={previewUrl}
+                                alt={displayName}
+                                loading="lazy"
+                                className="max-h-60 w-full object-cover cursor-zoom-in bg-black/30"
+                              />
+                            </button>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-100 truncate" title={displayName}>
-                              {displayName}
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
-                              Download to your device, then open with your usual PDF or document app.
-                            </p>
+                          <div className="absolute top-2 right-2 z-20">
+                            <button
+                              type="button"
+                              aria-label="Attachment options"
+                              onClick={openDotsMenu}
+                              className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={onDownload}
-                          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
-                        >
-                          <Download className="h-4 w-4" />
-                          Download
-                        </button>
-                        <div className="absolute top-2 right-2" data-attachment-menu-root>
+                      );
+                    }
+
+                    const pdfThumb = cloudinaryPdfCoverThumbnailUrl(fileUrl);
+                    const thumbFailed = !!pdfThumbFailedIds[msg.id];
+                    const showPdfThumb = !!pdfThumb && !thumbFailed;
+
+                    return (
+                      <div className="mt-2 rounded-xl border border-white/5 bg-black/20 relative overflow-visible">
+                        {showPdfThumb ? (
+                          <div className="rounded-t-xl overflow-hidden bg-zinc-950 max-h-52">
+                            <img
+                              src={pdfThumb}
+                              alt=""
+                              loading="lazy"
+                              className="w-full max-h-48 object-cover object-top"
+                              onError={() =>
+                                setPdfThumbFailedIds((prev) => ({ ...prev, [msg.id]: true }))
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-t-xl flex items-center justify-center h-36 bg-gradient-to-br from-red-600/25 to-zinc-950 border-b border-white/5">
+                            <FileText className="h-14 w-14 text-red-400/90" strokeWidth={1.25} />
+                          </div>
+                        )}
+                        <div className="p-3 pt-2.5 relative">
+                          <p
+                            className="text-[13px] font-semibold text-gray-100 truncate pr-11"
+                            title={displayName}
+                          >
+                            {displayName}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
+                            Download to open in your PDF or document app.
+                          </p>
                           <button
                             type="button"
-                            aria-label="More"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAttachmentMenuForId((id) => (id === msg.id ? null : msg.id));
-                            }}
-                            className="h-8 w-8 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-gray-300 hover:bg-black/55"
+                            onClick={onDownload}
+                            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
                           >
-                            <MoreVertical className="h-4 w-4" />
+                            <Download className="h-4 w-4" />
+                            Download
                           </button>
-                          {attachmentMenuForId === msg.id && (
-                            <div className="absolute right-0 mt-1 min-w-[160px] py-1 rounded-xl bg-[#141418] border border-white/10 shadow-xl z-10">
-                              <button
-                                type="button"
-                                onClick={onDownload}
-                                className="w-full px-3 py-2 text-left text-xs font-medium text-gray-200 hover:bg-white/5 flex items-center gap-2"
-                              >
-                                <Download className="h-3.5 w-3.5 shrink-0" />
-                                Save to device
-                              </button>
-                            </div>
-                          )}
+                          <div className="absolute top-2.5 right-2 z-20">
+                            <button
+                              type="button"
+                              aria-label="More"
+                              onClick={openDotsMenu}
+                              className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1234,6 +1269,42 @@ export default function ChatWindow({
         isOpen={isProfilePanelOpen}
         onClose={() => setIsProfilePanelOpen(false)}
       />
+
+      {attachmentMenu &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[85]"
+              aria-hidden
+              onMouseDown={() => setAttachmentMenu(null)}
+            />
+            <div
+              role="menu"
+              className="fixed z-[90] min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
+              style={{ top: attachmentMenu.top, left: attachmentMenu.left }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-100 hover:bg-white/[0.07] flex items-center gap-2"
+                onClick={async () => {
+                  const t = attachmentMenu.downloadTarget;
+                  setAttachmentMenu(null);
+                  try {
+                    await saveAttachmentToDevice(t);
+                  } catch {
+                    alert('Could not download this file. Please try again.');
+                  }
+                }}
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                Save to device
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
