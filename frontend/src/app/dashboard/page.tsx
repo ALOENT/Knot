@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldCheck, Activity, Flag, AlertTriangle } from 'lucide-react';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
 import Sidebar, { TabType } from '@/components/Sidebar';
@@ -27,6 +28,10 @@ export default function DashboardPage() {
   // Responsive view state
   const [showRightPanel, setShowRightPanel] = useState(false); // For mobile
   const [isMobile, setIsMobile] = useState(false);
+
+  // Warnings State
+  const [warnings, setWarnings] = useState<{id: string, message: string}[]>([]);
+  const [currentWarning, setCurrentWarning] = useState<{id: string, message: string} | null>(null);
 
   // Handle mobile detection to avoid hydration mismatch
   useEffect(() => {
@@ -56,6 +61,19 @@ export default function DashboardPage() {
           .catch((err) => console.error('Failed to load contacts', err));
       });
   }, []);
+
+  // ── Fetch warnings ──
+  useEffect(() => {
+    if (!currentUser) return;
+    api.get('/users/warnings')
+      .then((res) => {
+        if (res.data.success && res.data.warnings?.length > 0) {
+          setWarnings(res.data.warnings);
+          setCurrentWarning(res.data.warnings[0]);
+        }
+      })
+      .catch((err) => console.error('Failed to load warnings', err));
+  }, [currentUser]);
 
   // Keep a ref to activeChat to avoid re-triggering socket effect when switching chats
   const activeChatRef = useRef(activeChat?.id);
@@ -159,6 +177,18 @@ export default function DashboardPage() {
       // Ignored
     } finally {
       router.push('/login');
+    }
+  };
+
+  const handleDismissWarning = async () => {
+    if (!currentWarning) return;
+    try {
+      await api.put(`/users/warnings/${currentWarning.id}/dismiss`);
+      const remaining = warnings.slice(1);
+      setWarnings(remaining);
+      setCurrentWarning(remaining.length > 0 ? remaining[0] : null);
+    } catch (err) {
+      console.error('Failed to dismiss warning', err);
     }
   };
 
@@ -291,6 +321,44 @@ export default function DashboardPage() {
 
         </div>
       </main>
+      {/* ── Admin Warning Modal ── */}
+      <AnimatePresence>
+        {currentWarning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-[#0f0f12] border border-red-500/20 rounded-3xl w-full max-w-md overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.15)]"
+            >
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Official Warning</h2>
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-6 mb-8">
+                  <p className="text-gray-300 leading-relaxed text-sm italic">
+                    "{currentWarning.message}"
+                  </p>
+                </div>
+                <button
+                  onClick={handleDismissWarning}
+                  className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]"
+                >
+                  I Understand
+                </button>
+                <p className="mt-4 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                  Knot Safety Enforcement
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

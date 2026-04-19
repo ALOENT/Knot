@@ -34,6 +34,9 @@ interface ChatContextType {
   deleteMessage: (messageId: string) => void;
   privacyModeEnabled: boolean;
   setPrivacyModeEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  blockedUsers: AuthUser[];
+  blockedByIDs: string[];
+  isBlocked: (userId: string) => boolean;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -49,6 +52,9 @@ const ChatContext = createContext<ChatContextType>({
   deleteMessage: () => {},
   privacyModeEnabled: false,
   setPrivacyModeEnabled: () => {},
+  blockedUsers: [],
+  blockedByIDs: [],
+  isBlocked: () => false,
 });
 
 export const useChat = () => useContext(ChatContext);
@@ -59,6 +65,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeChat, setActiveChatState] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<AuthUser[]>([]);
+  const [blockedByIDs, setBlockedByIDs] = useState<string[]>([]);
   const messagesAbortRef = useRef<AbortController | null>(null);
   const activeChatRef = useRef<ChatUser | null>(null);
 
@@ -101,6 +109,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         const userData = res.data.data || res.data.user || res.data;
         setCurrentUser(userData);
         setIsLoadingAuth(false);
+        
+        // Fetch blocks after auth
+        fetchBlocks();
       })
       .catch((err) => {
         console.error('[ChatProvider] Auth error:', err);
@@ -109,6 +120,24 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoadingAuth(false);
       });
   }, []);
+
+  const fetchBlocks = useCallback(async () => {
+    try {
+      const res = await api.get('/users/blocked');
+      if (res.data.success) {
+        setBlockedUsers(res.data.blockedUsers || []);
+        setBlockedByIDs(res.data.blockedByIDs || []);
+      }
+    } catch (err) {
+      console.error('[ChatProvider] Failed to fetch blocks:', err);
+    }
+  }, []);
+
+  const isBlocked = useCallback((userId: string) => {
+    const iBlocked = blockedUsers.some(u => u.id === userId);
+    const theyBlocked = blockedByIDs.includes(userId);
+    return iBlocked || theyBlocked;
+  }, [blockedUsers, blockedByIDs]);
 
   // ── 1. Listen for incoming messages from OTHER users ──
   useEffect(() => {
@@ -176,12 +205,21 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, status: 'DELIVERED' } : m));
     };
 
-    const handleRead = (data: { readerId: string }) => {
-      setMessages((prev) => prev.map(m => 
-        m.senderId === currentUser?.id && m.receiverId === data.readerId && (m.status === 'SENT' || m.status === 'DELIVERED') 
-          ? { ...m, status: 'READ' } 
-          : m
-      ));
+    const handleRead = (data: { readerId?: string, messageIds?: string[], partnerId?: string }) => {
+      setMessages((prev) => prev.map(m => {
+        // If we have specific message IDs, use them
+        if (data.messageIds && data.messageIds.includes(m.id)) {
+          return { ...m, status: 'READ' };
+        }
+        
+        // Fallback to partner-based bulk update if no specific IDs (older backend version compatibility)
+        const partnerId = data.partnerId || data.readerId;
+        if (partnerId && m.senderId === currentUser?.id && m.receiverId === partnerId && (m.status === 'SENT' || m.status === 'DELIVERED')) {
+          return { ...m, status: 'READ' };
+        }
+        
+        return m;
+      }));
     };
 
     const handleDeleted = (data: { messageId: string }) => {
@@ -323,7 +361,23 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   }, [currentUser, messages]);
 
   return (
-    <ChatContext.Provider value={{ currentUser, setCurrentUser, authError, isLoadingAuth, activeChat, messages, setActiveChat, sendMessage, isLoadingMessages, deleteMessage, privacyModeEnabled, setPrivacyModeEnabled }}>
+    <ChatContext.Provider value={{ 
+      currentUser, 
+      setCurrentUser, 
+      authError, 
+      isLoadingAuth, 
+      activeChat, 
+      messages, 
+      setActiveChat, 
+      sendMessage, 
+      isLoadingMessages, 
+      deleteMessage, 
+      privacyModeEnabled, 
+      setPrivacyModeEnabled,
+      blockedUsers,
+      blockedByIDs,
+      isBlocked
+    }}>
       {children}
     </ChatContext.Provider>
   );

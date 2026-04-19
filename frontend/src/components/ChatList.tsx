@@ -33,7 +33,7 @@ interface ChatListProps {
 export default function ChatList({ users }: ChatListProps) {
   const [search, setSearch] = useState('');
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
-  const { activeChat, setActiveChat, currentUser, privacyModeEnabled } = useChat();
+  const { activeChat, setActiveChat, currentUser, privacyModeEnabled, isBlocked } = useChat();
   const { onlineUsers, typingUsers } = useSocket();
 
   const filtered = users.filter((u) => {
@@ -81,8 +81,9 @@ export default function ChatList({ users }: ChatListProps) {
         <AnimatePresence mode="popLayout">
           {filtered.map((user) => {
             const isActive = user.id === activeChat?.id;
-            const isOnline = privacyModeEnabled ? false : (onlineUsers.get(user.id) ?? user.isOnline ?? false);
-            const isTyping = typingUsers.get(user.id) ?? false;
+            const blocked = isBlocked(user.id);
+            const isOnline = (privacyModeEnabled || blocked) ? false : (onlineUsers.get(user.id) ?? user.isOnline ?? false);
+            const isTyping = blocked ? false : (typingUsers.get(user.id) ?? false);
 
             return (
               <motion.div
@@ -117,7 +118,7 @@ export default function ChatList({ users }: ChatListProps) {
                       border: '1px solid rgba(255, 255, 255, 0.05)',
                     }}
                   >
-                    {user.profilePic && !imageErrors[user.id] ? (
+                    {user.profilePic && !imageErrors[user.id] && !blocked ? (
                       <img
                         src={user.profilePic}
                         alt={user.displayName || user.username}
@@ -127,20 +128,22 @@ export default function ChatList({ users }: ChatListProps) {
                         className="h-full w-full rounded-2xl object-cover"
                       />
                     ) : (
-                      <span className="text-sm font-bold text-gray-500">
+                      <span className={`text-sm font-bold ${blocked ? 'text-gray-700' : 'text-gray-500'}`}>
                         {(user.displayName || user.username).charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
                   {/* Status dot */}
-                  <div
-                    className={`absolute -bottom-0.5 -right-0.5 status-dot ${isOnline ? 'online' : 'offline'}`}
-                    style={{
-                      width: 10,
-                      height: 10,
-                      border: '2px solid var(--dashboard-bg, #0a0a0c)',
-                    }}
-                  />
+                  {!blocked && (
+                    <div
+                      className={`absolute -bottom-0.5 -right-0.5 status-dot ${isOnline ? 'online' : 'offline'}`}
+                      style={{
+                        width: 10,
+                        height: 10,
+                        border: '2px solid var(--dashboard-bg, #0a0a0c)',
+                      }}
+                    />
+                  )}
                 </div>
 
                 {/* Content */}

@@ -175,3 +175,30 @@ export const resolveReport = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
+/**
+ * @desc    Issue a warning to a user
+ * @route   POST /api/admin/warn/:userId
+ * @access  Private/Admin
+ */
+export const warnUser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.params.userId as string;
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Warning message is required' });
+    }
+
+    const warning = await prisma.warning.create({
+      data: {
+        userId,
+        message
+      }
+    });
+
+    res.status(201).json({ success: true, data: warning, message: 'User warned successfully' });
+  } catch (error) {
+    next(error);
+  }
+};

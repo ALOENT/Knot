@@ -203,7 +203,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
 
     const userId = req.params.userId as string;
 
-    // Check for block
+    // Check for block (Bidirectional)
     const block = await prisma.block.findFirst({
       where: {
         OR: [
@@ -212,10 +212,6 @@ export const getUserProfile = async (req: Request, res: Response) => {
         ]
       }
     });
-
-    if (block) {
-      return res.status(403).json({ success: false, message: 'You cannot view this profile.' });
-    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -236,6 +232,17 @@ export const getUserProfile = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    // Redact info if blocked
+    if (block) {
+      user.profilePic = null;
+      user.bio = null;
+      user.banner = null;
+      user.isOnline = false;
+      user.lastSeen = '0'; // Or some placeholder
+    }
+
+    res.status(200).json({ success: true, user });
 
     res.status(200).json({ success: true, user });
   } catch (error) {
@@ -297,13 +304,19 @@ export const unblockUser = async (req: Request, res: Response) => {
  * @route   GET /api/users/blocked
  * @access  Private
  */
+/**
+ * @desc    Get bidirectional blocks for the current user
+ * @route   GET /api/users/blocked
+ * @access  Private
+ */
 export const getBlockedUsers = async (req: Request, res: Response) => {
   try {
-    const blockerId = req.user?.id;
-    if (!blockerId) return res.status(401).json({ success: false, message: 'Authentication required' });
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Authentication required' });
 
+    // Users I have blocked
     const blocked = await prisma.block.findMany({
-      where: { blockerId },
+      where: { blockerId: userId },
       include: {
         blocked: {
           select: {
@@ -316,8 +329,61 @@ export const getBlockedUsers = async (req: Request, res: Response) => {
       }
     });
 
-    res.status(200).json({ success: true, blockedUsers: blocked.map(b => b.blocked) });
+    // Users who have blocked me
+    const blockedBy = await prisma.block.findMany({
+      where: { blockedId: userId },
+      select: { blockerId: true }
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      blockedUsers: blocked.map(b => b.blocked),
+      blockedByIDs: blockedBy.map(b => b.blockerId)
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch blocked users' });
+  }
+};
+
+/**
+ * @desc    Get undismissed warnings for the current user
+ * @route   GET /api/users/warnings
+ * @access  Private
+ */
+export const getWarnings = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Authentication required' });
+
+    const warnings = await prisma.warning.findMany({
+      where: { userId, isDismissed: false },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    res.status(200).json({ success: true, warnings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch warnings' });
+  }
+};
+
+/**
+ * @desc    Dismiss a warning
+ * @route   PUT /api/users/warnings/:id/dismiss
+ * @access  Private
+ */
+export const dismissWarning = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const warningId = req.params.id as string;
+    if (!userId) return res.status(401).json({ success: false, message: 'Authentication required' });
+
+    await prisma.warning.update({
+      where: { id: warningId, userId },
+      data: { isDismissed: true }
+    });
+
+    res.status(200).json({ success: true, message: 'Warning dismissed' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to dismiss warning' });
   }
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
@@ -86,6 +86,27 @@ function isImageFile(url: string | null | undefined): boolean {
   return imageExtensions.some(ext => url.toLowerCase().includes(ext));
 }
 
+/** Formats a date string into "Today", "Yesterday", or a full date */
+function formatDateSeparator(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  if (targetDate.getTime() === today.getTime()) return 'Today';
+  if (targetDate.getTime() === yesterday.getTime()) return 'Yesterday';
+  
+  return date.toLocaleDateString(undefined, { 
+    day: 'numeric', 
+    month: 'long', 
+    year: targetDate.getFullYear() === now.getFullYear() ? undefined : 'numeric' 
+  });
+}
+
 /* ════════════════════════════════════════════
    Component
    ════════════════════════════════════════════ */
@@ -112,8 +133,9 @@ export default function ChatWindow({
   const [isBlockedByMe, setIsBlockedByMe] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [messageMenuOpenId, setMessageMenuOpenId] = useState<string | null>(null);
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   const { 
     activeChat: activeUser, 
@@ -122,36 +144,16 @@ export default function ChatWindow({
     sendMessage: onSendMessage, 
     deleteMessage: onDeleteMessage, 
     isLoadingMessages,
-    privacyModeEnabled 
+    privacyModeEnabled,
+    isBlocked
   } = useChat();
   
   const currentUserId = currentUser?.id;
-  const isOnline = privacyModeEnabled ? false : (activeUser ? (onlineUsers.get(activeUser.id) ?? false) : false);
-  const isTyping = activeUser ? (typingUsers.get(activeUser.id) ?? false) : false;
+  const partnerBlocked = activeUser ? isBlocked(activeUser.id) : false;
+  const isOnline = (activeUser && !privacyModeEnabled && !partnerBlocked) ? (onlineUsers.get(activeUser.id) ?? false) : false;
+  const isTyping = (activeUser && !partnerBlocked) ? (typingUsers.get(activeUser.id) ?? false) : false;
 
-  // Check if blocked by me
-  useEffect(() => {
-    if (!activeUser) return;
-    const controller = new AbortController();
-    setIsBlockedByMe(false);
-    api.get('/users/blocked', { signal: controller.signal })
-      .then(res => {
-        if (!controller.signal.aborted) {
-          if (res.data?.blockedUsers?.some((u: any) => u.id === activeUser.id)) {
-            setIsBlockedByMe(true);
-          }
-        }
-      })
-      .catch(err => {
-        if (!controller.signal.aborted) {
-          console.error("Failed fetching blocked status", err);
-        }
-      });
-      
-    return () => {
-      controller.abort();
-    };
-  }, [activeUser]);
+  // Handle report submission
 
   const handleBlockUser = async () => {
     if (!activeUser) return;
@@ -270,22 +272,74 @@ export default function ChatWindow({
 
     if (selectedFile) {
       setIsUploading(true);
+      setUploadProgress(0);
+      
       try {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        const res = await api.post('/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const url = await new Promise<string>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhrRef.current = xhr;
+          
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(percent);
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            xhrRef.current = null;
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                  resolve(response.fileUrl);
+                } else {
+                  reject(new Error(response.message || 'Upload failed'));
+                }
+              } catch (e) {
+                reject(new Error('Invalid response from server'));
+              }
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            xhrRef.current = null;
+            reject(new Error('Network error during upload'));
+          });
+          
+          xhr.addEventListener('abort', () => {
+            xhrRef.current = null;
+            reject(new Error('Upload cancelled'));
+          });
+          
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          
+          xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/upload`);
+          
+          // Get token from localStorage if available (assuming it's stored there for api client)
+          const token = localStorage.getItem('token');
+          if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          }
+          
+          xhr.send(formData);
         });
-        if (res.data.success && res.data.file) {
-          fileUrl = res.data.file.url;
+        
+        fileUrl = url;
+      } catch (error: any) {
+        if (error.message !== 'Upload cancelled') {
+          console.error("Failed to upload file", error);
+          alert(error.message || "Failed to upload file. Please try again.");
         }
-      } catch (error) {
-        console.error("Failed to upload file", error);
-        alert("Failed to upload file. Please try again.");
         setIsUploading(false);
+        xhrRef.current = null;
         return;
       }
       setIsUploading(false);
+      setUploadProgress(0);
     }
 
     onSendMessage(trimmed, fileUrl, replyingTo?.id);
@@ -320,6 +374,15 @@ export default function ChatWindow({
 
   const clearFile = () => {
     setSelectedFile(null);
+  };
+
+  const cancelUpload = () => {
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   // ── Empty state ──
@@ -372,24 +435,26 @@ export default function ChatWindow({
                   border: '1px solid rgba(255, 255, 255, 0.06)',
                 }}
               >
-                {activeUser.profilePic ? (
+                {activeUser.profilePic && !partnerBlocked ? (
                   <img
                     src={activeUser.profilePic}
                     alt={activeUser.displayName || activeUser.username}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm font-bold text-gray-500">
+                  <span className={`text-sm font-bold ${partnerBlocked ? 'text-gray-700' : 'text-gray-500'}`}>
                     {(activeUser.displayName || activeUser.username).charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
-              <div
-                className={`absolute -bottom-0.5 -right-0.5 status-dot ${
-                  isOnline ? 'online' : 'offline'
-                }`}
-                style={{ width: 10, height: 10, border: '2px solid #0a0a0c' }}
-              />
+              {!partnerBlocked && (
+                <div
+                  className={`absolute -bottom-0.5 -right-0.5 status-dot ${
+                    isOnline ? 'online' : 'offline'
+                  }`}
+                  style={{ width: 10, height: 10, border: '2px solid #0a0a0c' }}
+                />
+              )}
             </div>
 
             <div className="min-w-0">
@@ -518,11 +583,26 @@ export default function ChatWindow({
         <div className="min-h-4 md:min-h-6" />
 
         <AnimatePresence initial={false}>
-          {messages.map((msg) => {
+          {messages.map((msg, index) => {
             const isMine = msg.senderId === currentUserId;
+            const prevMsg = index > 0 ? messages[index - 1] : null;
+            const msgDate = new Date(msg.timestamp).toDateString();
+            const prevMsgDate = prevMsg ? new Date(prevMsg.timestamp).toDateString() : null;
+            const showDateSeparator = msgDate !== prevMsgDate;
 
             return (
-              <motion.div
+              <Fragment key={msg.id}>
+                {showDateSeparator && (
+                  <div className="flex justify-center my-6 md:my-8 relative">
+                    <div className="absolute inset-0 flex items-center px-8 md:px-12">
+                      <div className="w-full border-t border-white/5" />
+                    </div>
+                    <span className="relative z-10 px-4 py-1.5 rounded-full bg-[#151518] border border-white/5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest shadow-xl">
+                      {formatDateSeparator(msg.timestamp)}
+                    </span>
+                  </div>
+                )}
+                <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -617,8 +697,9 @@ export default function ChatWindow({
                   </span>
                 </div>
               </motion.div>
-            );
-          })}
+            </Fragment>
+          );
+        })}
         </AnimatePresence>
         <div ref={messagesEndRef} className="h-2" />
       </div>
@@ -646,16 +727,37 @@ export default function ChatWindow({
                 <p className="text-xs font-bold text-blue-200 truncate">
                   {selectedFile.name}
                 </p>
-                <p className="text-[10px] text-blue-400/60 font-medium">
-                  {(selectedFile.size / 1024).toFixed(0)} KB • Ready to send
-                </p>
+                {isUploading ? (
+                  <div className="mt-1.5 space-y-1">
+                    <div className="flex justify-between items-center text-[9px] font-bold text-blue-400/80 uppercase tracking-tighter">
+                      <span>Uploading...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-blue-500/10 rounded-full overflow-hidden border border-white/5">
+                      <motion.div 
+                        className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadProgress}%` }}
+                        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-blue-400/60 font-medium">
+                    {(selectedFile.size / 1024).toFixed(0)} KB • Ready to send
+                  </p>
+                )}
               </div>
               <button
-                onClick={clearFile}
-                className="h-8 w-8 rounded-full hover:bg-white/5 flex items-center justify-center transition-colors"
-                aria-label="Remove file"
+                onClick={isUploading ? cancelUpload : clearFile}
+                className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${
+                  isUploading 
+                    ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400' 
+                    : 'hover:bg-white/5 text-blue-400'
+                }`}
+                aria-label={isUploading ? "Cancel upload" : "Remove file"}
               >
-                <X className="h-4 w-4 text-blue-400" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </motion.div>

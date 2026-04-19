@@ -74,26 +74,43 @@ export const initChatSocket = (io: Server) => {
       }
     });
 
-    // Mark as Read Event
+    // Mark as Read Event (receiver opens conversation)
     socket.on(SOCKET_EVENTS.MESSAGE_READ, async (data: { senderId: string }) => {
       if (!data.senderId) return;
       try {
-        await prisma.message.updateMany({
+        // Collect IDs of messages that will be marked as read
+        const unreadMessages = await prisma.message.findMany({
           where: {
             senderId: data.senderId,
             receiverId: userId,
             status: { in: ['SENT', 'DELIVERED'] }
           },
+          select: { id: true }
+        });
+
+        if (unreadMessages.length === 0) return;
+
+        const messageIds = unreadMessages.map(m => m.id);
+
+        await prisma.message.updateMany({
+          where: { id: { in: messageIds } },
           data: { status: 'READ' }
         });
         
         // Notify the original sender that their messages were read
-        const senderSockets = io.sockets.adapter.rooms.get(data.senderId);
-        if (senderSockets) {
-          io.to(data.senderId).emit(SOCKET_EVENTS.MESSAGE_READ, {
-            readerId: userId
-          });
-        }
+        // Emit to the sender's personal room
+        io.to(data.senderId).emit(SOCKET_EVENTS.MESSAGE_READ, {
+          messageIds,
+          partnerId: userId // The person who read the messages
+        });
+        
+        // Also broadcast to other rooms the sender/receiver might be in (e.g. ChatWindow room)
+        const roomId = getRoomId(userId, data.senderId);
+        socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_READ, {
+          messageIds,
+          partnerId: userId
+        });
+
       } catch (error) {
         logger.error(`Error marking messages as read:`, error);
       }
@@ -105,7 +122,7 @@ export const initChatSocket = (io: Server) => {
         if (!receiverId) return;
         if (!content && !fileUrl) return; // Ignore empty messages
         
-        // Check if block exists
+        // 1. Check if block exists (Bidirectional enforcement)
         const block = await prisma.block.findFirst({
           where: {
             OR: [
@@ -116,26 +133,9 @@ export const initChatSocket = (io: Server) => {
         });
 
         if (block) {
-          // If you blocked them, UI should prevent this, but just in case:
-          if (block.blockerId === userId) {
-             socket.emit(SOCKET_EVENTS.ERROR, { message: 'You have blocked this user' });
-             return;
-          }
-          // If they blocked you, silently fail:
-          const fakeMessage = {
-             id: `fake_${Date.now()}`,
-             content,
-             fileUrl,
-             senderId: userId,
-             receiverId,
-             replyToId,
-             status: 'SENT',
-             isDeleted: false,
-             timestamp: new Date().toISOString(),
-             sender: { id: userId, username: 'you', displayName: 'you', profilePic: null }
-          };
-          socket.emit(SOCKET_EVENTS.MESSAGE_CONFIRMED, fakeMessage);
-          return;
+          // Rule: Silently drop. Do not save, do not emit to anyone, no error back.
+          logger.info(`Message from ${userId} to ${receiverId} silently dropped due to block.`);
+          return; 
         }
 
         // Check if receiver is online

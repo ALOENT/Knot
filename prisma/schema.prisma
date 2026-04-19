@@ -57,6 +57,9 @@ model User {
   // Blocks
   blockedUsers Block[] @relation("Blocker")
   blockedBy    Block[] @relation("BlockedUser")
+
+  // Warnings
+  warnings Warning[] @relation("UserWarnings")
 }
 
 model Message {
@@ -124,4 +127,14 @@ model Block {
   blocked User @relation("BlockedUser", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
+}
+
+model Warning {
+  id          String   @id @default(uuid())
+  userId      String
+  message     String
+  isDismissed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user User @relation("UserWarnings", fields: [userId], references: [id], onDelete: Cascade)
 }

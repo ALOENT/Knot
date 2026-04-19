@@ -444,9 +444,15 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                                 )}
                               </div>
                             </div>
-                            <div className="mt-3 text-xs text-gray-400 flex items-center gap-2">
-                               <Flag className="w-3.5 h-3.5" />
-                               <span className="font-semibold text-gray-300">Reason:</span> {report.reason}
+                            <div className="mt-3 text-[10px] text-gray-500 flex items-center gap-4">
+                               <div className="flex items-center gap-1.5">
+                                 <Flag className="w-3 h-3" />
+                                 <span className="font-semibold text-gray-400">Reason:</span> {report.reason}
+                               </div>
+                               <div className="flex items-center gap-1.5">
+                                 <Activity className="w-3 h-3" />
+                                 <span className="font-semibold text-gray-400">Reported on:</span> {new Date(report.createdAt).toLocaleString()}
+                               </div>
                             </div>
                           </div>
                         ))
@@ -505,14 +511,38 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       <button 
                         onClick={async () => {
                           if (!selectedReport) return;
-                          // In this context, 'Warn' just dismisses/resolves the report
-                          await handleResolveReport(selectedReport.id);
-                          setSelectedReport(null);
+                          const msg = prompt('Enter warning message for reporter:', 'Your report has been reviewed. Please avoid filing false reports.');
+                          if (!msg) return;
+                          try {
+                            await api.post(`/admin/warn/${selectedReport.reporterId}`, { message: msg });
+                            await handleResolveReport(selectedReport.id);
+                            setSelectedReport(null);
+                          } catch (err) {
+                            alert('Failed to warn reporter');
+                          }
                         }}
                         disabled={resolvingReports[selectedReport.id]}
                         className="px-4 py-2.5 bg-yellow-600/10 border border-yellow-500/20 text-yellow-500 rounded-xl font-bold text-xs hover:bg-yellow-600/20 transition-all disabled:opacity-50"
                       >
                         WARN REPORTER
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (!selectedReport) return;
+                          const msg = prompt('Enter warning message for reported user:');
+                          if (!msg) return;
+                          try {
+                            await api.post(`/admin/warn/${selectedReport.reportedUserId}`, { message: msg });
+                            await handleResolveReport(selectedReport.id);
+                            setSelectedReport(null);
+                          } catch (err) {
+                            alert('Failed to warn reported user');
+                          }
+                        }}
+                        disabled={resolvingReports[selectedReport.id]}
+                        className="px-4 py-2.5 bg-orange-600/10 border border-orange-500/20 text-orange-500 rounded-xl font-bold text-xs hover:bg-orange-600/20 transition-all disabled:opacity-50"
+                      >
+                        WARN REPORTED
                       </button>
                       <button 
                          onClick={async () => {
