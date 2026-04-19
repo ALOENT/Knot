@@ -86,11 +86,6 @@ function isImageFile(url: string | null | undefined): boolean {
   return imageExtensions.some(ext => url.toLowerCase().includes(ext));
 }
 
-/** Start of local calendar day (ms) for consistent day boundaries */
-function startOfLocalDayMs(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
 /**
  * WhatsApp-style chat date pill label, relative to `now` (pass real "current" time at render).
  * - Same calendar day as now → "Today"
@@ -102,9 +97,12 @@ function formatDateSeparator(isoTimestamp: string, now: Date): string {
   const msg = new Date(isoTimestamp);
   if (Number.isNaN(msg.getTime())) return '';
 
-  const diffDays = Math.round(
-    (startOfLocalDayMs(now) - startOfLocalDayMs(msg)) / 86400000,
-  );
+  // Use UTC normalization for DST-safe day counting.
+  // This treats each calendar day as exactly 86.4M ms, ignoring local DST shifts.
+  const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const utcMsg = Date.UTC(msg.getFullYear(), msg.getMonth(), msg.getDate());
+  
+  const diffDays = Math.round((utcNow - utcMsg) / 86400000);
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
