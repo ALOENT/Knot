@@ -28,7 +28,14 @@ interface ChatContextType {
   activeChat: ChatUser | null;
   messages: Message[];
   setActiveChat: (user: ChatUser | null) => void;
-  sendMessage: (content: string, fileUrl?: string, replyToId?: string, fileName?: string) => void;
+  sendMessage: (
+    content: string,
+    fileUrl?: string,
+    replyToId?: string,
+    fileName?: string,
+    attachmentBytes?: number,
+    attachmentPages?: number,
+  ) => void;
   isLoadingMessages: boolean;
   setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
   deleteMessage: (messageId: string) => void;
@@ -233,7 +240,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === data.messageId
-            ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: undefined }
+            ? {
+                ...m,
+                isDeleted: true,
+                content: 'This message was deleted',
+                fileUrl: null,
+                fileName: undefined,
+                attachmentBytes: undefined,
+                attachmentPages: undefined,
+              }
             : m,
         ),
       );
@@ -306,12 +321,28 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── 3. Handle Sending Messages (Optimistic UI) ──
   const sendMessage = useCallback(
-    (content: string, fileUrl?: string, replyToId?: string, fileName?: string) => {
+    (
+      content: string,
+      fileUrl?: string,
+      replyToId?: string,
+      fileName?: string,
+      attachmentBytes?: number,
+      attachmentPages?: number,
+    ) => {
       if (!socket || !activeChat || !currentUser) return;
       if (currentUser.isBanned) {
         console.warn('Action blocked: user is banned');
         return;
       }
+
+      const bytes =
+        typeof attachmentBytes === 'number' && Number.isFinite(attachmentBytes) && attachmentBytes >= 0
+          ? Math.floor(attachmentBytes)
+          : undefined;
+      const pages =
+        typeof attachmentPages === 'number' && Number.isFinite(attachmentPages) && attachmentPages > 0
+          ? Math.floor(attachmentPages)
+          : undefined;
 
       // Create optimistic message
       const optimisticMsg: Message = {
@@ -319,6 +350,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         content,
         fileUrl,
         fileName: fileName?.trim() || undefined,
+        attachmentBytes: bytes,
+        attachmentPages: pages,
         senderId: currentUser.id,
         receiverId: activeChat.id,
         timestamp: new Date().toISOString(),
@@ -340,6 +373,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         content,
         fileUrl,
         fileName: fileName?.trim() || undefined,
+        attachmentBytes: bytes,
+        attachmentPages: pages,
         replyToId,
       });
     },
@@ -365,7 +400,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === messageId
-          ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: undefined }
+          ? {
+              ...m,
+              isDeleted: true,
+              content: 'This message was deleted',
+              fileUrl: null,
+              fileName: undefined,
+              attachmentBytes: undefined,
+              attachmentPages: undefined,
+            }
           : m,
       ),
     );

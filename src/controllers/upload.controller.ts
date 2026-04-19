@@ -67,10 +67,28 @@ export const uploadFile = async (req: Request, res: Response) => {
       readableStream.pipe(uploadStream);
     });
 
+    const attachmentBytes = buffer.length;
+    let attachmentPages: number | null = null;
+    if (detectedType.mime === 'application/pdf') {
+      try {
+        const pdfParse = (await import('pdf-parse')).default as (
+          data: Buffer,
+        ) => Promise<{ numpages?: number }>;
+        const meta = await pdfParse(buffer);
+        const n = meta?.numpages;
+        attachmentPages = typeof n === 'number' && n > 0 ? n : null;
+      } catch (e) {
+        logger.error('PDF page count failed', e);
+        attachmentPages = null;
+      }
+    }
+
     return res.status(200).json({
       success: true,
       fileUrl: (uploadResult as any).secure_url,
       fileName: originalname,
+      attachmentBytes,
+      ...(attachmentPages != null ? { attachmentPages } : {}),
     });
   } catch (error) {
     logger.error('Failed to upload file to Cloudinary', error);

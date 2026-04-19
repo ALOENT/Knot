@@ -67,6 +67,8 @@ model Message {
   content    String?
   fileUrl    String? // For images, docs
   fileName   String? // Original filename for UI / downloads (optional for legacy rows)
+  attachmentBytes Int? // File size in bytes (set on upload)
+  attachmentPages Int? // PDF page count when known; null for non-PDF
   senderId   String
   receiverId String
   replyToId  String?

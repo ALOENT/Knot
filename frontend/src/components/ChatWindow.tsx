@@ -23,6 +23,8 @@ export interface Message {
   content?: string | null;
   fileUrl?: string | null;
   fileName?: string | null;
+  attachmentBytes?: number | null;
+  attachmentPages?: number | null;
   senderId: string;
   receiverId: string;
   timestamp: string;
@@ -88,11 +90,72 @@ function isImageFile(url: string | null | undefined): boolean {
   return imageExtensions.some(ext => url.toLowerCase().includes(ext));
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+/**
+ * NEXT_PUBLIC_API_URL is sometimes set without `/api` (e.g. http://localhost:5000).
+ * Upload and attachment downloads must hit the `/api/...` routes.
+ */
+function knotApiRoot(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
+  return /\/api$/i.test(raw) ? raw : `${raw}/api`;
+}
+
+const API_BASE = knotApiRoot();
 
 /** Authenticated stream URL (session cookie); Cloudinary URL is never opened directly for docs. */
 function attachmentStreamUrl(messageId: string, mode: 'inline' | 'attachment'): string {
   return `${API_BASE}/upload/message/${messageId}/file?mode=${mode}`;
+}
+
+function formatBytesLabel(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n) || n < 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  const rounded = i === 0 ? String(Math.round(v)) : v < 10 ? v.toFixed(1) : String(Math.round(v));
+  return `${rounded} ${units[i]}`;
+}
+
+/** PDF: "N pages · size"; other attachments: size only when known. */
+function formatAttachmentMetaLine(
+  bytes: number | null | undefined,
+  pages: number | null | undefined,
+  fileUrl: string,
+  displayName: string,
+): string {
+  const lower = `${displayName} ${fileUrl}`.toLowerCase();
+  const isPdf = lower.includes('.pdf');
+  const size = formatBytesLabel(bytes);
+  if (isPdf && pages != null && pages > 0) {
+    const p = `${pages} page${pages === 1 ? '' : 's'}`;
+    return size ? `${p} · ${size}` : p;
+  }
+  return size;
+}
+
+function receiverMayDownloadAttachment(
+  msg: Pick<Message, 'id' | 'senderId'>,
+  currentUserId: string | undefined,
+): boolean {
+  if (!currentUserId) return false;
+  if (msg.senderId === currentUserId) return false;
+  if (typeof window === 'undefined') return true;
+  try {
+    return localStorage.getItem(`knot_attachment_dl_${currentUserId}_${msg.id}`) !== '1';
+  } catch {
+    return true;
+  }
+}
+
+function markReceiverSavedAttachment(currentUserId: string, messageId: string): void {
+  try {
+    localStorage.setItem(`knot_attachment_dl_${currentUserId}_${messageId}`, '1');
+  } catch {
+    /* ignore */
+  }
 }
 
 function deriveAttachmentDisplayName(fileUrl: string, fileName?: string | null): string {
@@ -130,10 +193,10 @@ function cloudinaryPdfCoverThumbnailUrl(fileUrl: string): string | null {
   if (!isChatDocumentAttachment(fileUrl) || !fileUrl.toLowerCase().includes('.pdf')) return null;
   const lower = fileUrl.toLowerCase();
   if (lower.includes('/raw/upload/')) {
-    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_300,h_380,c_fill,q_auto,f_jpg/');
+    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_200,h_260,c_fill,q_auto,f_jpg/');
   }
   if (lower.includes('/image/upload/')) {
-    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_300,h_380,c_fill,q_auto,f_jpg/');
+    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_200,h_260,c_fill,q_auto,f_jpg/');
   }
   return null;
 }
@@ -150,8 +213,12 @@ async function saveAttachmentToDevice(
     triggerBrowserDownload(blob, filename);
     return;
   }
-  const res = await fetch(attachmentStreamUrl(msg.id, 'attachment'), { credentials: 'include' });
-  if (!res.ok) throw new Error('fetch failed');
+  const res = await fetch(attachmentStreamUrl(msg.id, 'attachment'), {
+    credentials: 'include',
+    mode: 'cors',
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`download ${res.status}`);
   const blob = await res.blob();
   triggerBrowserDownload(blob, filename);
 }
@@ -238,14 +305,18 @@ export default function ChatWindow({
     id: string;
     fileUrl: string;
     fileName?: string | null;
+    showSave: boolean;
   } | null>(null);
   /** Fixed-position portal so menu is not clipped by scroll parents and closes reliably. */
   const [attachmentMenu, setAttachmentMenu] = useState<{
     top: number;
     left: number;
+    showPortalSave: boolean;
     downloadTarget: Pick<Message, 'id' | 'fileUrl'> & { fileName?: string | null };
   } | null>(null);
   const [pdfThumbFailedIds, setPdfThumbFailedIds] = useState<Record<string, boolean>>({});
+  /** Bumps after marking localStorage so receiver download UI hides without reload. */
+  const [, setDlBump] = useState(0);
 
   const { 
     activeChat: activeUser, 
@@ -400,13 +471,20 @@ export default function ChatWindow({
     const attachedOriginalName = selectedFile?.name;
     let fileUrl: string | undefined = undefined;
     let uploadedFileName: string | undefined = undefined;
+    let uploadedBytes: number | undefined = undefined;
+    let uploadedPages: number | undefined = undefined;
 
     if (selectedFile) {
       setIsUploading(true);
       setUploadProgress(0);
       
       try {
-        const uploaded = await new Promise<{ fileUrl: string; fileName?: string }>((resolve, reject) => {
+        const uploaded = await new Promise<{
+          fileUrl: string;
+          fileName?: string;
+          attachmentBytes?: number;
+          attachmentPages?: number;
+        }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
           
@@ -426,6 +504,10 @@ export default function ChatWindow({
                   resolve({
                     fileUrl: response.fileUrl,
                     fileName: response.fileName || attachedOriginalName,
+                    attachmentBytes:
+                      typeof response.attachmentBytes === 'number' ? response.attachmentBytes : undefined,
+                    attachmentPages:
+                      typeof response.attachmentPages === 'number' ? response.attachmentPages : undefined,
                   });
                 } else {
                   reject(new Error(response.message || 'Upload failed'));
@@ -451,7 +533,7 @@ export default function ChatWindow({
           const formData = new FormData();
           formData.append('file', selectedFile);
 
-          const uploadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/upload`;
+          const uploadUrl = `${API_BASE}/upload`;
           xhr.open('POST', uploadUrl);
           // Match axios `api` client: session is the httpOnly `jwt` cookie, not localStorage.
           xhr.withCredentials = true;
@@ -461,6 +543,8 @@ export default function ChatWindow({
         
         fileUrl = uploaded.fileUrl;
         uploadedFileName = uploaded.fileName;
+        uploadedBytes = uploaded.attachmentBytes;
+        uploadedPages = uploaded.attachmentPages;
       } catch (error: any) {
         if (error.message !== 'Upload cancelled') {
           console.error("Failed to upload file", error);
@@ -474,7 +558,7 @@ export default function ChatWindow({
       setUploadProgress(0);
     }
 
-    onSendMessage(trimmed, fileUrl, replyingTo?.id, uploadedFileName);
+    onSendMessage(trimmed, fileUrl, replyingTo?.id, uploadedFileName, uploadedBytes, uploadedPages);
     setInput('');
     setSelectedFile(null);
     setShowEmojiPicker(false);
@@ -789,6 +873,14 @@ export default function ChatWindow({
                       fileUrl,
                       fileName: msg.fileName,
                     };
+                    const showDl = receiverMayDownloadAttachment(msg, currentUserId);
+                    const metaLine = formatAttachmentMetaLine(
+                      msg.attachmentBytes,
+                      msg.attachmentPages,
+                      fileUrl,
+                      displayName,
+                    );
+
                     const openImagePreview = () => {
                       setAttachmentMenu(null);
                       setImagePreview({
@@ -797,16 +889,23 @@ export default function ChatWindow({
                         id: msg.id,
                         fileUrl,
                         fileName: msg.fileName,
+                        showSave: showDl,
                       });
                     };
-                    const onDownload = async () => {
+
+                    const runDownload = async () => {
                       setAttachmentMenu(null);
                       try {
                         await saveAttachmentToDevice(msg);
+                        if (currentUserId) {
+                          markReceiverSavedAttachment(currentUserId, msg.id);
+                          setDlBump((n) => n + 1);
+                        }
                       } catch {
                         alert('Could not download this file. Please try again.');
                       }
                     };
+
                     const openDotsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
                       e.stopPropagation();
                       const r = e.currentTarget.getBoundingClientRect();
@@ -818,7 +917,7 @@ export default function ChatWindow({
                       setAttachmentMenu((cur) =>
                         cur?.downloadTarget.id === msg.id
                           ? null
-                          : { top: r.bottom + 6, left, downloadTarget },
+                          : { top: r.bottom + 6, left, downloadTarget, showPortalSave: true },
                       );
                     };
 
@@ -839,16 +938,21 @@ export default function ChatWindow({
                               />
                             </button>
                           </div>
-                          <div className="absolute top-2 right-2 z-20">
-                            <button
-                              type="button"
-                              aria-label="Attachment options"
-                              onClick={openDotsMenu}
-                              className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-                          </div>
+                          {metaLine ? (
+                            <p className="text-[10px] text-zinc-500 px-1 pt-1.5">{metaLine}</p>
+                          ) : null}
+                          {showDl ? (
+                            <div className="absolute top-2 right-2 z-20">
+                              <button
+                                type="button"
+                                aria-label="Attachment options"
+                                onClick={openDotsMenu}
+                                className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     }
@@ -860,50 +964,54 @@ export default function ChatWindow({
                     return (
                       <div className="mt-2 rounded-xl border border-white/5 bg-black/20 relative overflow-visible">
                         {showPdfThumb ? (
-                          <div className="rounded-t-xl overflow-hidden bg-zinc-950 max-h-52">
+                          <div className="rounded-t-xl overflow-hidden bg-zinc-950">
                             <img
                               src={pdfThumb}
                               alt=""
                               loading="lazy"
-                              className="w-full max-h-48 object-cover object-top"
+                              className="w-full max-h-32 object-cover object-top"
                               onError={() =>
                                 setPdfThumbFailedIds((prev) => ({ ...prev, [msg.id]: true }))
                               }
                             />
                           </div>
                         ) : (
-                          <div className="rounded-t-xl flex items-center justify-center h-36 bg-gradient-to-br from-red-600/25 to-zinc-950 border-b border-white/5">
-                            <FileText className="h-14 w-14 text-red-400/90" strokeWidth={1.25} />
+                          <div className="rounded-t-xl flex items-center justify-center h-24 bg-gradient-to-br from-red-600/25 to-zinc-950 border-b border-white/5">
+                            <FileText className="h-10 w-10 text-red-400/90" strokeWidth={1.25} />
                           </div>
                         )}
-                        <div className="p-3 pt-2.5 relative">
-                          <p
-                            className="text-[13px] font-semibold text-gray-100 truncate pr-11"
-                            title={displayName}
-                          >
+                        <div className={`p-3 pt-2.5 relative ${showDl ? 'pr-11' : ''}`}>
+                          <p className="text-[13px] font-semibold text-gray-100 truncate" title={displayName}>
                             {displayName}
                           </p>
-                          <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
-                            Download to open in your PDF or document app.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={onDownload}
-                            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download
-                          </button>
-                          <div className="absolute top-2.5 right-2 z-20">
-                            <button
-                              type="button"
-                              aria-label="More"
-                              onClick={openDotsMenu}
-                              className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-                          </div>
+                          {metaLine ? (
+                            <p className="text-[10px] text-zinc-500 mt-1">{metaLine}</p>
+                          ) : null}
+                          {showDl ? (
+                            <>
+                              <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
+                                Download to open in your PDF or document app.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={runDownload}
+                                className="mt-2.5 w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
+                              >
+                                <Download className="h-4 w-4" />
+                                Download
+                              </button>
+                              <div className="absolute top-2.5 right-2 z-20">
+                                <button
+                                  type="button"
+                                  aria-label="More"
+                                  onClick={openDotsMenu}
+                                  className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1144,24 +1252,31 @@ export default function ChatWindow({
             >
               <p className="text-sm font-medium text-gray-300 truncate min-w-0 flex-1">{imagePreview.title}</p>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await saveAttachmentToDevice({
-                        id: imagePreview.id,
-                        fileUrl: imagePreview.fileUrl,
-                        fileName: imagePreview.fileName,
-                      });
-                    } catch {
-                      alert('Could not download this file. Please try again.');
-                    }
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-xs font-semibold text-white hover:bg-white/15"
-                >
-                  <Download className="h-4 w-4" />
-                  Save
-                </button>
+                {imagePreview.showSave ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await saveAttachmentToDevice({
+                          id: imagePreview.id,
+                          fileUrl: imagePreview.fileUrl,
+                          fileName: imagePreview.fileName,
+                        });
+                        if (currentUserId) {
+                          markReceiverSavedAttachment(currentUserId, imagePreview.id);
+                          setDlBump((n) => n + 1);
+                        }
+                        setImagePreview(null);
+                      } catch {
+                        alert('Could not download this file. Please try again.');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-xs font-semibold text-white hover:bg-white/15"
+                  >
+                    <Download className="h-4 w-4" />
+                    Save
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setImagePreview(null)}
@@ -1288,22 +1403,28 @@ export default function ChatWindow({
               style={{ top: attachmentMenu.top, left: attachmentMenu.left }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-100 hover:bg-white/[0.07] flex items-center gap-2"
-                onClick={async () => {
-                  const t = attachmentMenu.downloadTarget;
-                  setAttachmentMenu(null);
-                  try {
-                    await saveAttachmentToDevice(t);
-                  } catch {
-                    alert('Could not download this file. Please try again.');
-                  }
-                }}
-              >
-                <Download className="h-3.5 w-3.5 shrink-0" />
-                Save to device
-              </button>
+              {attachmentMenu.showPortalSave ? (
+                <button
+                  type="button"
+                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-100 hover:bg-white/[0.07] flex items-center gap-2"
+                  onClick={async () => {
+                    const t = attachmentMenu.downloadTarget;
+                    setAttachmentMenu(null);
+                    try {
+                      await saveAttachmentToDevice(t);
+                      if (currentUserId) {
+                        markReceiverSavedAttachment(currentUserId, t.id);
+                        setDlBump((n) => n + 1);
+                      }
+                    } catch {
+                      alert('Could not download this file. Please try again.');
+                    }
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  Save to device
+                </button>
+              ) : null}
             </div>
           </>,
           document.body,

@@ -117,9 +117,9 @@ export const initChatSocket = (io: Server) => {
       }
     });
     // Send Message Event
-    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; fileName?: string | null; replyToId?: string }) => {
+    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; fileName?: string | null; attachmentBytes?: number | null; attachmentPages?: number | null; replyToId?: string }) => {
       try {
-        const { receiverId, content, fileUrl, fileName, replyToId } = data;
+        const { receiverId, content, fileUrl, fileName, attachmentBytes, attachmentPages, replyToId } = data;
         if (!receiverId) return;
         if (!content && !fileUrl) return; // Ignore empty messages
         
@@ -150,6 +150,17 @@ export const initChatSocket = (io: Server) => {
             content,
             fileUrl,
             fileName: fileName && String(fileName).trim() ? String(fileName).trim().slice(0, 255) : null,
+            attachmentBytes:
+              typeof attachmentBytes === 'number' && Number.isFinite(attachmentBytes) && attachmentBytes >= 0
+                ? Math.min(Math.floor(attachmentBytes), 2147483647)
+                : null,
+            attachmentPages:
+              typeof attachmentPages === 'number' &&
+              Number.isFinite(attachmentPages) &&
+              attachmentPages > 0 &&
+              attachmentPages <= 10000
+                ? Math.floor(attachmentPages)
+                : null,
             senderId: userId,
             receiverId,
             replyToId,

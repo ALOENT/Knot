@@ -60,6 +60,8 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         content: true,
         fileUrl: true,
         fileName: true,
+        attachmentBytes: true,
+        attachmentPages: true,
         senderId: true,
         receiverId: true,
         timestamp: true,
