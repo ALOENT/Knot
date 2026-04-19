@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import { uploadFile } from '../controllers/upload.controller';
+import { uploadFile, streamMessageAttachment } from '../controllers/upload.controller';
 import { protect } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -35,6 +35,19 @@ const uploadLimiter = rateLimit({
   max: 10,
   message: { success: false, message: 'Too many upload requests. Please try again later.' }
 });
+
+const attachmentDownloadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  message: { success: false, message: 'Too many download requests. Please try again later.' }
+});
+
+router.get(
+  '/message/:messageId/file',
+  protect,
+  attachmentDownloadLimiter,
+  streamMessageAttachment,
+);
 
 router.post('/', protect, uploadLimiter, upload.single('file'), uploadFile);
 

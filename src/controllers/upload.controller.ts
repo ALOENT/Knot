@@ -1,8 +1,10 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { prisma } from '../utils/db';
 import { Readable } from 'stream';
+import { z } from 'zod';
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME,
@@ -67,9 +69,88 @@ export const uploadFile = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       fileUrl: (uploadResult as any).secure_url,
+      fileName: originalname,
     });
   } catch (error) {
     logger.error('Failed to upload file to Cloudinary', error);
     return res.status(500).json({ success: false, message: 'File upload failed' });
+  }
+};
+
+const uuidSchema = z.string().uuid('Invalid message id');
+
+function safeDownloadFilename(name: string): string {
+  const t = name.trim() || 'download';
+  return t.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 200);
+}
+
+function deriveFilenameFromStoredUrl(fileUrl: string): string {
+  try {
+    const seg = new URL(fileUrl).pathname.split('/').filter(Boolean).pop() || 'file';
+    return seg.replace(/^\d+_/, '') || 'file';
+  } catch {
+    return 'file';
+  }
+}
+
+/**
+ * Stream an attachment for a message the user is allowed to see.
+ * Cloudinary stays storage-only; clients use this URL with the session cookie.
+ * ?mode=inline for <img> / lightbox, ?mode=attachment (default) for downloads.
+ */
+export const streamMessageAttachment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const messageId = req.params.messageId as string;
+    if (!uuidSchema.safeParse(messageId).success) {
+      return res.status(400).json({ success: false, message: 'Invalid message ID' });
+    }
+
+    const mode = req.query.mode === 'inline' ? 'inline' : 'attachment';
+
+    const message = await prisma.message.findFirst({
+      where: {
+        id: messageId,
+        fileUrl: { not: null },
+        isDeleted: false,
+        OR: [{ senderId: userId }, { receiverId: userId }],
+      },
+      select: { fileUrl: true, fileName: true },
+    });
+
+    if (!message?.fileUrl) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    const upstream = await fetch(message.fileUrl);
+    if (!upstream.ok) {
+      logger.error(`Attachment upstream ${upstream.status} for message ${messageId}`);
+      return res.status(502).json({ success: false, message: 'Could not retrieve file' });
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    const displayName = safeDownloadFilename(
+      message.fileName || deriveFilenameFromStoredUrl(message.fileUrl),
+    );
+
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+
+    if (mode === 'inline') {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+    } else {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+    }
+
+    res.send(buffer);
+  } catch (error) {
+    logger.error('streamMessageAttachment failed', error);
+    next(error);
   }
 };

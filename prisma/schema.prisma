@@ -66,6 +66,7 @@ model Message {
   id         String   @id @default(uuid())
   content    String?
   fileUrl    String? // For images, docs
+  fileName   String? // Original filename for UI / downloads (optional for legacy rows)
   senderId   String
   receiverId String
   replyToId  String?

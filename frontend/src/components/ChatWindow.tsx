@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, Download, FileText } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
@@ -21,6 +21,7 @@ export interface Message {
   id: string;
   content?: string | null;
   fileUrl?: string | null;
+  fileName?: string | null;
   senderId: string;
   receiverId: string;
   timestamp: string;
@@ -86,6 +87,60 @@ function isImageFile(url: string | null | undefined): boolean {
   return imageExtensions.some(ext => url.toLowerCase().includes(ext));
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+/** Authenticated stream URL (session cookie); Cloudinary URL is never opened directly for docs. */
+function attachmentStreamUrl(messageId: string, mode: 'inline' | 'attachment'): string {
+  return `${API_BASE}/upload/message/${messageId}/file?mode=${mode}`;
+}
+
+function deriveAttachmentDisplayName(fileUrl: string, fileName?: string | null): string {
+  if (fileName?.trim()) return fileName.trim();
+  try {
+    const seg = new URL(fileUrl).pathname.split('/').filter(Boolean).pop() || 'File';
+    return seg.replace(/^\d+_/, '') || 'File';
+  } catch {
+    return 'File';
+  }
+}
+
+/** Cloudinary image deliveries use /image/upload/; also allow common extensions in URL. */
+function isChatImageAttachment(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (url.includes('/image/upload/')) return true;
+  return isImageFile(url);
+}
+
+async function saveAttachmentToDevice(
+  msg: Pick<Message, 'id' | 'fileUrl'> & { fileName?: string | null },
+): Promise<void> {
+  if (!msg.fileUrl) return;
+  const filename = deriveAttachmentDisplayName(msg.fileUrl, msg.fileName);
+  if (msg.id.startsWith('temp-')) {
+    const res = await fetch(msg.fileUrl);
+    if (!res.ok) throw new Error('fetch failed');
+    const blob = await res.blob();
+    triggerBrowserDownload(blob, filename);
+    return;
+  }
+  const res = await fetch(attachmentStreamUrl(msg.id, 'attachment'), { credentials: 'include' });
+  if (!res.ok) throw new Error('fetch failed');
+  const blob = await res.blob();
+  triggerBrowserDownload(blob, filename);
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string): void {
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(u);
+}
+
 /**
  * WhatsApp-style chat date pill label, relative to `now` (pass real "current" time at render).
  * - Same calendar day as now → "Today"
@@ -147,6 +202,14 @@ export default function ChatWindow({
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   /** Advances at local midnight so date separators recompute (Today/Yesterday/weekday). */
   const [nowAnchor, setNowAnchor] = useState(() => new Date());
+  const [imagePreview, setImagePreview] = useState<{
+    src: string;
+    title: string;
+    id: string;
+    fileUrl: string;
+    fileName?: string | null;
+  } | null>(null);
+  const [attachmentMenuForId, setAttachmentMenuForId] = useState<string | null>(null);
 
   const { 
     activeChat: activeUser, 
@@ -247,17 +310,30 @@ export default function ChatWindow({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle Escape to close menus
+  // Handle Escape to close menus / lightbox
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsMenuOpen(false);
         setShowEmojiPicker(false);
+        setImagePreview(null);
+        setAttachmentMenuForId(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  useEffect(() => {
+    if (!attachmentMenuForId) return;
+    const close = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.('[data-attachment-menu-root]')) return;
+      setAttachmentMenuForId(null);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [attachmentMenuForId]);
 
   // Re-render after local midnight so date labels stay aligned with the real calendar
   useEffect(() => {
@@ -296,14 +372,16 @@ export default function ChatWindow({
     const trimmed = input.trim();
     if ((!trimmed && !selectedFile) || !activeUser || isUploading || isBlockedByMe) return;
 
+    const attachedOriginalName = selectedFile?.name;
     let fileUrl: string | undefined = undefined;
+    let uploadedFileName: string | undefined = undefined;
 
     if (selectedFile) {
       setIsUploading(true);
       setUploadProgress(0);
       
       try {
-        const url = await new Promise<string>((resolve, reject) => {
+        const uploaded = await new Promise<{ fileUrl: string; fileName?: string }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
           
@@ -320,7 +398,10 @@ export default function ChatWindow({
               try {
                 const response = JSON.parse(xhr.responseText);
                 if (response.success) {
-                  resolve(response.fileUrl);
+                  resolve({
+                    fileUrl: response.fileUrl,
+                    fileName: response.fileName || attachedOriginalName,
+                  });
                 } else {
                   reject(new Error(response.message || 'Upload failed'));
                 }
@@ -353,7 +434,8 @@ export default function ChatWindow({
           xhr.send(formData);
         });
         
-        fileUrl = url;
+        fileUrl = uploaded.fileUrl;
+        uploadedFileName = uploaded.fileName;
       } catch (error: any) {
         if (error.message !== 'Upload cancelled') {
           console.error("Failed to upload file", error);
@@ -367,7 +449,7 @@ export default function ChatWindow({
       setUploadProgress(0);
     }
 
-    onSendMessage(trimmed, fileUrl, replyingTo?.id);
+    onSendMessage(trimmed, fileUrl, replyingTo?.id, uploadedFileName);
     setInput('');
     setSelectedFile(null);
     setShowEmojiPicker(false);
@@ -673,36 +755,121 @@ export default function ChatWindow({
                       {parseMessageContent(msg.content)}
                     </p>
                   )}
-                  {!msg.isDeleted && msg.fileUrl && (
-                    <div className="mt-2 rounded-xl overflow-hidden border border-white/5 bg-black/20">
-                      {isImageFile(msg.fileUrl) ? (
-                        <img
-                          src={msg.fileUrl}
-                          alt="Attachment"
-                          className="max-h-60 w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
-                        />
-                      ) : (
-                        <a 
-                          href={msg.fileUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-3 hover:bg-white/5 transition-colors group/file"
+                  {!msg.isDeleted && msg.fileUrl && (() => {
+                    const fileUrl = msg.fileUrl;
+                    const displayName = deriveAttachmentDisplayName(fileUrl, msg.fileName);
+                    const imageSrc =
+                      isChatImageAttachment(fileUrl) && !msg.id.startsWith('temp-')
+                        ? attachmentStreamUrl(msg.id, 'inline')
+                        : fileUrl;
+                    const openImagePreview = () => {
+                      setAttachmentMenuForId(null);
+                      setImagePreview({
+                        src: imageSrc,
+                        title: displayName,
+                        id: msg.id,
+                        fileUrl,
+                        fileName: msg.fileName,
+                      });
+                    };
+                    const onDownload = async () => {
+                      setAttachmentMenuForId(null);
+                      try {
+                        await saveAttachmentToDevice(msg);
+                      } catch {
+                        alert('Could not download this file. Please try again.');
+                      }
+                    };
+                    return isChatImageAttachment(fileUrl) ? (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-white/5 bg-black/20 relative group/att">
+                        <button
+                          type="button"
+                          onClick={openImagePreview}
+                          className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-xl"
                         >
+                          <img
+                            src={imageSrc}
+                            alt={displayName}
+                            className="max-h-60 w-full object-cover cursor-zoom-in"
+                          />
+                        </button>
+                        <div className="absolute top-1.5 right-1.5 z-10" data-attachment-menu-root>
+                          <button
+                            type="button"
+                            aria-label="Attachment options"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAttachmentMenuForId((id) => (id === msg.id ? null : msg.id));
+                            }}
+                            className="h-8 w-8 rounded-full bg-black/55 border border-white/10 flex items-center justify-center text-gray-200 hover:bg-black/70 backdrop-blur-sm"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                          {attachmentMenuForId === msg.id && (
+                            <div className="absolute right-0 mt-1 min-w-[160px] py-1 rounded-xl bg-[#141418] border border-white/10 shadow-xl">
+                              <button
+                                type="button"
+                                onClick={onDownload}
+                                className="w-full px-3 py-2 text-left text-xs font-medium text-gray-200 hover:bg-white/5 flex items-center gap-2"
+                              >
+                                <Download className="h-3.5 w-3.5 shrink-0" />
+                                Save to device
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 rounded-xl border border-white/5 bg-black/20 p-3 relative">
+                        <div className="flex items-start gap-3 pr-10">
                           <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                            <Paperclip className="h-5 w-5 text-blue-400" />
+                            <FileText className="h-5 w-5 text-blue-400" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-gray-200 truncate group-hover/file:text-blue-400 transition-colors">
-                              Download Attachment
+                            <p className="text-[13px] font-semibold text-gray-100 truncate" title={displayName}>
+                              {displayName}
                             </p>
-                            <p className="text-[10px] text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-                              {msg.fileUrl.split('/').pop() || 'File'}
+                            <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
+                              Download to your device, then open with your usual PDF or document app.
                             </p>
                           </div>
-                        </a>
-                      )}
-                    </div>
-                  )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onDownload}
+                          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-gray-200 hover:bg-white/[0.1] transition-colors"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </button>
+                        <div className="absolute top-2 right-2" data-attachment-menu-root>
+                          <button
+                            type="button"
+                            aria-label="More"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAttachmentMenuForId((id) => (id === msg.id ? null : msg.id));
+                            }}
+                            className="h-8 w-8 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-gray-300 hover:bg-black/55"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                          {attachmentMenuForId === msg.id && (
+                            <div className="absolute right-0 mt-1 min-w-[160px] py-1 rounded-xl bg-[#141418] border border-white/10 shadow-xl z-10">
+                              <button
+                                type="button"
+                                onClick={onDownload}
+                                className="w-full px-3 py-2 text-left text-xs font-medium text-gray-200 hover:bg-white/5 flex items-center gap-2"
+                              >
+                                <Download className="h-3.5 w-3.5 shrink-0" />
+                                Save to device
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <span
                     className={`flex items-center gap-1 text-[10px] mt-1.5 font-medium tracking-tight ${
                       isMine ? 'justify-end text-blue-200/40' : 'justify-start text-gray-500'
@@ -918,6 +1085,68 @@ export default function ChatWindow({
           height: 3.5px;
         }
       `}</style>
+
+      {/* Image lightbox — tap photo to open; download uses authed API (no raw Cloudinary tab). */}
+      <AnimatePresence>
+        {imagePreview && (
+          <motion.div
+            key="img-lightbox"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Image preview"
+            onClick={() => setImagePreview(null)}
+          >
+            <div
+              className="flex items-center justify-between gap-3 shrink-0 mb-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-sm font-medium text-gray-300 truncate min-w-0 flex-1">{imagePreview.title}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await saveAttachmentToDevice({
+                        id: imagePreview.id,
+                        fileUrl: imagePreview.fileUrl,
+                        fileName: imagePreview.fileName,
+                      });
+                    } catch {
+                      alert('Could not download this file. Please try again.');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-xs font-semibold text-white hover:bg-white/15"
+                >
+                  <Download className="h-4 w-4" />
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImagePreview(null)}
+                  className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/15"
+                  aria-label="Close preview"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div
+              className="flex-1 flex items-center justify-center min-h-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={imagePreview.src}
+                alt={imagePreview.title}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Report User Modal */}
       <AnimatePresence>

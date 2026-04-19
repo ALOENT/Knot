@@ -59,6 +59,7 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         id: true,
         content: true,
         fileUrl: true,
+        fileName: true,
         senderId: true,
         receiverId: true,
         timestamp: true,

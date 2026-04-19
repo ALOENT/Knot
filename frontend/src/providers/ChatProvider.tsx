@@ -28,7 +28,7 @@ interface ChatContextType {
   activeChat: ChatUser | null;
   messages: Message[];
   setActiveChat: (user: ChatUser | null) => void;
-  sendMessage: (content: string, fileUrl?: string, replyToId?: string) => void;
+  sendMessage: (content: string, fileUrl?: string, replyToId?: string, fileName?: string) => void;
   isLoadingMessages: boolean;
   setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
   deleteMessage: (messageId: string) => void;
@@ -184,11 +184,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         const idx = prev.findIndex((m) => {
           if (m.id === msg.id) return true; // Already real, skip
           if (!m.id.startsWith('temp-')) return false;
-          // Match by same sender + similar content + close timestamp
+          // Match by same sender + same text/file + close timestamp
           const isSameSender = m.senderId === msg.senderId;
-          const isSameContent = m.content?.trim() === msg.content?.trim();
+          const isSameContent = (m.content?.trim() || '') === (msg.content?.trim() || '');
+          const isSameFile = (m.fileUrl || '') === (msg.fileUrl || '');
           const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime());
-          return isSameSender && isSameContent && timeDiff < 10000;
+          return isSameSender && isSameContent && isSameFile && timeDiff < 10000;
         });
 
         if (idx !== -1) {
@@ -229,7 +230,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const handleDeleted = (data: { messageId: string }) => {
-      setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m));
+      setMessages((prev) => prev.map(m => m.id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: null } : m));
     };
 
     socket.on('message_delivered', handleDelivered);
@@ -299,7 +300,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── 3. Handle Sending Messages (Optimistic UI) ──
   const sendMessage = useCallback(
-    (content: string, fileUrl?: string, replyToId?: string) => {
+    (content: string, fileUrl?: string, replyToId?: string, fileName?: string) => {
       if (!socket || !activeChat || !currentUser) return;
       if (currentUser.isBanned) {
         console.warn('Action blocked: user is banned');
@@ -311,6 +312,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         content,
         fileUrl,
+        fileName: fileName?.trim() || undefined,
         senderId: currentUser.id,
         receiverId: activeChat.id,
         timestamp: new Date().toISOString(),
@@ -331,6 +333,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         receiverId: activeChat.id,
         content,
         fileUrl,
+        fileName: fileName?.trim() || undefined,
         replyToId,
       });
     },
@@ -354,7 +357,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (!originalMessage) return;
 
     setMessages(prev => 
-      prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null } : m)
+      prev.map(m => m.id === messageId ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: null } : m)
     );
       
     // Verify by calling backend

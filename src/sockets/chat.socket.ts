@@ -117,9 +117,9 @@ export const initChatSocket = (io: Server) => {
       }
     });
     // Send Message Event
-    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; replyToId?: string }) => {
+    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; fileName?: string | null; replyToId?: string }) => {
       try {
-        const { receiverId, content, fileUrl, replyToId } = data;
+        const { receiverId, content, fileUrl, fileName, replyToId } = data;
         if (!receiverId) return;
         if (!content && !fileUrl) return; // Ignore empty messages
         
@@ -149,6 +149,7 @@ export const initChatSocket = (io: Server) => {
           data: {
             content,
             fileUrl,
+            fileName: fileName && String(fileName).trim() ? String(fileName).trim().slice(0, 255) : null,
             senderId: userId,
             receiverId,
             replyToId,
