@@ -86,24 +86,35 @@ function isImageFile(url: string | null | undefined): boolean {
   return imageExtensions.some(ext => url.toLowerCase().includes(ext));
 }
 
-/** Formats a date string into "Today", "Yesterday", or a full date */
-function formatDateSeparator(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  
-  if (targetDate.getTime() === today.getTime()) return 'Today';
-  if (targetDate.getTime() === yesterday.getTime()) return 'Yesterday';
-  
-  return date.toLocaleDateString(undefined, { 
-    day: 'numeric', 
-    month: 'long', 
-    year: targetDate.getFullYear() === now.getFullYear() ? undefined : 'numeric' 
+/** Start of local calendar day (ms) for consistent day boundaries */
+function startOfLocalDayMs(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * WhatsApp-style chat date pill label, relative to `now` (pass real "current" time at render).
+ * - Same calendar day as now → "Today"
+ * - Previous calendar day → "Yesterday"
+ * - 2–7 calendar days ago → weekday ("Monday", …)
+ * - Older (or future skew) → "15 Jan 2025"
+ */
+function formatDateSeparator(isoTimestamp: string, now: Date): string {
+  const msg = new Date(isoTimestamp);
+  if (Number.isNaN(msg.getTime())) return '';
+
+  const diffDays = Math.round(
+    (startOfLocalDayMs(now) - startOfLocalDayMs(msg)) / 86400000,
+  );
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays >= 2 && diffDays <= 7) {
+    return msg.toLocaleDateString(undefined, { weekday: 'long' });
+  }
+  return msg.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
 }
 
@@ -136,6 +147,8 @@ export default function ChatWindow({
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
+  /** Advances at local midnight so date separators recompute (Today/Yesterday/weekday). */
+  const [nowAnchor, setNowAnchor] = useState(() => new Date());
 
   const { 
     activeChat: activeUser, 
@@ -247,6 +260,15 @@ export default function ChatWindow({
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  // Re-render after local midnight so date labels stay aligned with the real calendar
+  useEffect(() => {
+    const tick = new Date();
+    const nextMidnight = new Date(tick.getFullYear(), tick.getMonth(), tick.getDate() + 1);
+    const ms = Math.max(1000, nextMidnight.getTime() - tick.getTime());
+    const id = window.setTimeout(() => setNowAnchor(new Date()), ms);
+    return () => window.clearTimeout(id);
+  }, [nowAnchor]);
 
   // Initialize isBlockedByMe from context/server state
   useEffect(() => {
@@ -601,12 +623,12 @@ export default function ChatWindow({
             return (
               <Fragment key={msg.id}>
                 {showDateSeparator && (
-                  <div className="flex justify-center my-6 md:my-8 relative">
-                    <div className="absolute inset-0 flex items-center px-8 md:px-12">
-                      <div className="w-full border-t border-white/5" />
+                  <div className="flex justify-center my-5 md:my-6 relative">
+                    <div className="absolute inset-0 flex items-center px-6 md:px-10">
+                      <div className="w-full border-t border-white/[0.04]" />
                     </div>
-                    <span className="relative z-10 px-4 py-1.5 rounded-full bg-[#151518] border border-white/5 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest shadow-xl">
-                      {formatDateSeparator(msg.timestamp)}
+                    <span className="relative z-10 px-3 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-[11px] font-medium text-zinc-500 tabular-nums shadow-sm">
+                      {formatDateSeparator(msg.timestamp, nowAnchor)}
                     </span>
                   </div>
                 )}

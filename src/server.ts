@@ -82,15 +82,27 @@ app.use('/api/upload', uploadRoutes);
 // Global Error Handling Middleware
 app.use(errorHandler);
 
-const PORT = env.PORT || 5000;
+const PORT = Number.parseInt(env.PORT, 10);
+const listenPort = Number.isFinite(PORT) && PORT > 0 ? PORT : 5000;
 
 const startServer = async () => {
   try {
     await prisma.$connect();
     logger.info('Database connected successfully');
-    
-    httpServer.listen(PORT, () => {
-      logger.info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+
+    httpServer.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(
+          `Port ${listenPort} is already in use (another process is listening). Stop that process or set PORT in your environment to a free port.`
+        );
+        process.exit(1);
+      }
+      logger.error('HTTP server failed to start', err);
+      process.exit(1);
+    });
+
+    httpServer.listen(listenPort, () => {
+      logger.info(`Server running in ${env.NODE_ENV} mode on port ${listenPort}`);
     });
   } catch (error) {
     logger.error('Failed to connect to database format', error);
