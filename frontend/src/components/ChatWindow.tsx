@@ -344,15 +344,12 @@ export default function ChatWindow({
           
           const formData = new FormData();
           formData.append('file', selectedFile);
-          
-          xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/upload`);
-          
-          // Get token from localStorage if available (assuming it's stored there for api client)
-          const token = localStorage.getItem('token');
-          if (token) {
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          }
-          
+
+          const uploadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/upload`;
+          xhr.open('POST', uploadUrl);
+          // Match axios `api` client: session is the httpOnly `jwt` cookie, not localStorage.
+          xhr.withCredentials = true;
+
           xhr.send(formData);
         });
         
@@ -894,13 +891,13 @@ export default function ChatWindow({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={(!input.trim() && !selectedFile) || isUploading}
             className="h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-30 shadow-lg"
             style={{
-              background: input.trim()
+              background: input.trim() || selectedFile
                 ? '#2563eb'
                 : 'rgba(255, 255, 255, 0.04)',
-              boxShadow: input.trim() ? '0 4px 12px rgba(37, 99, 235, 0.3)' : 'none'
+              boxShadow: input.trim() || selectedFile ? '0 4px 12px rgba(37, 99, 235, 0.3)' : 'none'
             }}
           >
             <Send className="h-5 w-5 text-white" />
