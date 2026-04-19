@@ -193,12 +193,24 @@ function cloudinaryPdfCoverThumbnailUrl(fileUrl: string): string | null {
   if (!isChatDocumentAttachment(fileUrl) || !fileUrl.toLowerCase().includes('.pdf')) return null;
   const lower = fileUrl.toLowerCase();
   if (lower.includes('/raw/upload/')) {
-    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_200,h_260,c_fill,q_auto,f_jpg/');
+    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_400,h_520,c_fill,q_best,f_jpg/');
   }
   if (lower.includes('/image/upload/')) {
-    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_200,h_260,c_fill,q_auto,f_jpg/');
+    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_400,h_520,c_fill,q_best,f_jpg/');
   }
   return null;
+}
+
+/** Get inline view URL for PDF (for viewing in lightbox/browser). */
+function cloudinaryPdfInlineUrl(fileUrl: string): string {
+  const lower = fileUrl.toLowerCase();
+  if (lower.includes('/raw/upload/')) {
+    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_1200,h_1560,c_limit,q_best,f_jpg/');
+  }
+  if (lower.includes('/image/upload/')) {
+    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_1200,h_1560,c_limit,q_best,f_jpg/');
+  }
+  return fileUrl;
 }
 
 async function saveAttachmentToDevice(
@@ -215,10 +227,13 @@ async function saveAttachmentToDevice(
   }
   const res = await fetch(attachmentStreamUrl(msg.id, 'attachment'), {
     credentials: 'include',
-    mode: 'cors',
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`download ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('Download failed with:', res.status, errText);
+    throw new Error(`download ${res.status}`);
+  }
   const blob = await res.blob();
   triggerBrowserDownload(blob, filename);
 }
@@ -901,7 +916,8 @@ export default function ChatWindow({
                           markReceiverSavedAttachment(currentUserId, msg.id);
                           setDlBump((n) => n + 1);
                         }
-                      } catch {
+                      } catch (err) {
+                        console.error('Download failed:', err);
                         alert('Could not download this file. Please try again.');
                       }
                     };
@@ -961,10 +977,28 @@ export default function ChatWindow({
                     const thumbFailed = !!pdfThumbFailedIds[msg.id];
                     const showPdfThumb = !!pdfThumb && !thumbFailed;
 
+                    const openPdfInline = () => {
+                      const inlineUrl = msg.id.startsWith('temp-')
+                        ? cloudinaryPdfInlineUrl(fileUrl)
+                        : attachmentStreamUrl(msg.id, 'inline');
+                      setImagePreview({
+                        src: inlineUrl,
+                        title: displayName,
+                        id: msg.id,
+                        fileUrl,
+                        fileName: msg.fileName || null,
+                        showSave: showDl,
+                      });
+                    };
+
                     return (
                       <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/30 relative overflow-hidden min-w-[280px] max-w-full shadow-lg">
                         {showPdfThumb ? (
-                          <div className="h-24 overflow-hidden bg-zinc-950 border-b border-white/5 relative">
+                          <button
+                            type="button"
+                            onClick={openPdfInline}
+                            className="h-24 w-full overflow-hidden bg-zinc-950 border-b border-white/5 relative block"
+                          >
                             <img
                               src={pdfThumb!}
                               alt=""
@@ -977,7 +1011,7 @@ export default function ChatWindow({
                             <div className="absolute top-2 left-2 bg-red-600/90 text-[9px] font-bold text-white px-1.5 py-0.5 rounded shadow-sm">
                               PDF
                             </div>
-                          </div>
+                          </button>
                         ) : null}
                         
                         <div className="p-2.5 px-3 flex items-center gap-3">
@@ -985,9 +1019,14 @@ export default function ChatWindow({
                             <FileText className="h-5 w-5 text-red-500" strokeWidth={2} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-bold text-white truncate pr-2" title={displayName}>
+                            <button
+                              type="button"
+                              onClick={openPdfInline}
+                              className="text-[13px] font-bold text-white truncate pr-2 text-left hover:text-blue-400 transition-colors"
+                              title="Click to open"
+                            >
                               {displayName}
-                            </p>
+                            </button>
                             <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">
                               {metaLine || 'Document'}
                             </p>
