@@ -623,9 +623,9 @@ export default function ChatWindow({
                 {showDateSeparator && (
                   <div className="flex justify-center my-5 md:my-6 relative">
                     <div className="absolute inset-0 flex items-center px-6 md:px-10">
-                      <div className="w-full border-t border-white/[0.04]" />
+                      <div className="w-full border-t border-white/4" />
                     </div>
-                    <span className="relative z-10 px-3 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-[11px] font-medium text-zinc-500 tabular-nums shadow-sm">
+                    <span className="relative z-10 px-3 py-1 rounded-full bg-white/3 border border-white/6 text-[11px] font-medium text-zinc-500 tabular-nums shadow-sm">
                       {formatDateSeparator(msg.timestamp, nowAnchor)}
                     </span>
                   </div>
