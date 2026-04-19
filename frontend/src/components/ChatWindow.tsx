@@ -1278,7 +1278,7 @@ export default function ChatWindow({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-100 flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
+            className="fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
             role="dialog"
             aria-modal="true"
             aria-label="Image preview"
@@ -1431,13 +1431,13 @@ export default function ChatWindow({
         createPortal(
           <>
             <div
-              className="fixed inset-0 z-85"
+              className="fixed inset-0 z-[85]"
               aria-hidden
               onMouseDown={() => setAttachmentMenu(null)}
             />
             <div
               role="menu"
-              className="fixed z-90 min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
+              className="fixed z-[90] min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
               style={{ top: attachmentMenu.top, left: attachmentMenu.left }}
               onMouseDown={(e) => e.stopPropagation()}
             >

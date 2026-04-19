@@ -3,7 +3,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/db';
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { z } from 'zod';
 
@@ -124,6 +124,42 @@ function attachmentUpstreamTimeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : 10_000;
 }
 
+/** Size-limiting transform stream that counts bytes and aborts when limit exceeded. */
+class SizeLimitStream extends Transform {
+  private bytesSeen = 0;
+  private limit: number;
+  private messageId: string;
+  private limitExceeded = false;
+
+  constructor(limit: number, messageId: string) {
+    super();
+    this.limit = limit;
+    this.messageId = messageId;
+  }
+
+  _transform(chunk: Buffer, _encoding: string, callback: (err?: Error | null) => void): void {
+    if (this.limitExceeded) {
+      callback(new Error(`Size limit exceeded`));
+      return;
+    }
+
+    const chunkLen = chunk.length;
+    this.bytesSeen += chunkLen;
+
+    if (this.bytesSeen > this.limit) {
+      this.limitExceeded = true;
+      logger.error(
+        `Attachment size limit exceeded messageId=${this.messageId} bytes=${this.bytesSeen} limit=${this.limit}`,
+      );
+      callback(new Error(`Size limit exceeded`));
+      return;
+    }
+
+    this.push(chunk);
+    callback();
+  }
+}
+
 /**
  * Stream an attachment for a message the user is allowed to see.
  * Cloudinary stays storage-only; clients use this URL with the session cookie.
@@ -230,10 +266,20 @@ export const streamMessageAttachment = async (req: Request, res: Response, next:
     }
 
     const nodeReadable = Readable.fromWeb(webBody as import('stream/web').ReadableStream);
+    const sizeLimitStream = new SizeLimitStream(MAX_ATTACHMENT_BYTES, messageId);
 
     try {
-      await pipeline(nodeReadable, res);
+      await pipeline(nodeReadable, sizeLimitStream, res);
     } catch (pipeErr) {
+      const err = pipeErr as { message?: string };
+      if (err?.message?.includes('Size limit exceeded')) {
+        logger.error(`Attachment size limit exceeded messageId=${messageId}`);
+        if (!res.headersSent) {
+          return res.status(413).json({ success: false, message: 'File too large' });
+        }
+        res.destroy();
+        return;
+      }
       logger.error(`Attachment stream pipeline failed messageId=${messageId}`, pipeErr);
       if (!res.headersSent) {
         return res.status(502).json({ success: false, message: 'Could not retrieve file' });
