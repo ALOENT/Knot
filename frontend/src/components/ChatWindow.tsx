@@ -102,76 +102,24 @@ function knotApiRoot(): string {
 const API_BASE = knotApiRoot();
 
 /**
- * Robust file action handler: triggers local download for same-origin, 
- * blob-fetch for cross-origin, and falls back to window.open if needed.
+ * Simple file action handler: triggers a new tab/download via anchor tag injection.
+ * This approach does not require popup permissions and works reliably across browsers.
  */
-async function handleFileAction(fileUrl: string | null | undefined, fileName?: string | null) {
+const handleFileAction = (fileUrl: string | null | undefined, fileName?: string | null) => {
   if (!fileUrl) return;
   
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const targetName = fileName || deriveAttachmentDisplayName(fileUrl);
-
-  const triggerDownload = (url: string, name: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  try {
-    if (isMobile) {
-      // Mobile browsers: direct window.open is usually allowed and triggers native downloaders
-      const win = window.open(fileUrl, '_blank', 'noopener,noreferrer');
-      if (!win) alert('Popup blocked. Please allow popups to download files.');
-    } else {
-      let urlOrigin: string;
-      try {
-        urlOrigin = new URL(fileUrl).origin;
-      } catch {
-        urlOrigin = window.location.origin;
-      }
-      
-      const isCrossOrigin = urlOrigin !== window.location.origin;
-
-      if (!isCrossOrigin) {
-        // Same-origin: Anchor download works perfectly
-        triggerDownload(fileUrl, targetName);
-      } else {
-        // Cross-origin: 'download' attribute is ignored. 
-        // We pre-open a window to avoid the popup blocker after the async 'fetch' call.
-        const winFallback = window.open('', '_blank', 'noopener,noreferrer');
-        
-        try {
-          const resp = await fetch(fileUrl);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const blob = await resp.blob();
-          const localUrl = URL.createObjectURL(blob);
-          
-          if (winFallback) winFallback.close();
-          triggerDownload(localUrl, targetName);
-          setTimeout(() => URL.revokeObjectURL(localUrl), 30000);
-        } catch (fetchErr) {
-          console.warn('Direct blob fetch failed, falling back to new tab', fetchErr);
-          if (winFallback) {
-            // Update the already-opened tab to the file URL
-            winFallback.location.href = fileUrl;
-          } else {
-            // If the initial window.open was blocked, we try once more but it will likely fail
-            const winFinal = window.open(fileUrl, '_blank', 'noopener,noreferrer');
-            if (!winFinal) throw new Error('Download failed. Please allow popups and try again.');
-          }
-        }
-      }
-    }
-  } catch (err: any) {
-    console.error('handleFileAction error:', err);
-    alert(err.message || 'Could not complete the file action.');
+  const link = document.createElement('a');
+  link.href = fileUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  // Use download attribute if a filename is provided (best-effort)
+  if (fileName) {
+    link.download = fileName;
   }
-}
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 function formatBytesLabel(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n < 0) return '';
