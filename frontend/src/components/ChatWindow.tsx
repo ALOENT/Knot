@@ -101,23 +101,26 @@ function knotApiRoot(): string {
 
 const API_BASE = knotApiRoot();
 
-/**
- * Open Cloudinary URL in a new tab. Programmatic anchor fallback for downloads.
- */
 function handleFileAction(fileUrl: string | null | undefined, fileName?: string | null) {
   if (!fileUrl) return;
   
-  // Create a temporary anchor to attempt a direct download with a nice filename.
-  // Note: 'download' attribute usually only works for same-origin or when headers allow.
-  // For Cloudinary, it will likely just open in a new tab if CORS prevents direct download.
-  const a = document.createElement('a');
-  a.href = fileUrl;
-  a.download = fileName || deriveAttachmentDisplayName(fileUrl);
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isMobile) {
+    // Mobile browsers handle Cloudinary URLs with fl_attachment natively via window.open
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  } else {
+    // Desktop: Create a temporary anchor to attempt a direct download with a nice filename.
+    // This triggers the browser's native "Save As" flow for Cloudinary URLs with fl_attachment.
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = fileName || deriveAttachmentDisplayName(fileUrl);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 }
 
 function formatBytesLabel(n: number | null | undefined): string {

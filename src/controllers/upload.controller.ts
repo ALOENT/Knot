@@ -21,9 +21,6 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     const { buffer, originalname, mimetype: multerMime } = req.file;
 
-    // Security - Content-based MIME-type check (Security Audit item)
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-    
     // Static dynamic import for file-type (ESM)
     const { fileTypeFromBuffer } = await (import('file-type') as any);
     const detectedType = await fileTypeFromBuffer(buffer);
@@ -32,8 +29,30 @@ export const uploadFile = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Unable to determine file type or invalid content' });
     }
 
+    // Detect resource_type based on MIME
+    let resourceType: 'image' | 'video' | 'raw' = 'raw';
+    if (detectedType.mime.startsWith('image/')) {
+      resourceType = 'image';
+    } else if (detectedType.mime.startsWith('video/')) {
+      resourceType = 'video';
+    }
+
+    const allowedMimeTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/quicktime',
+      'application/pdf',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+      'application/zip', 'application/x-zip-compressed'
+    ];
+    
     if (!allowedMimeTypes.includes(detectedType.mime)) {
-      return res.status(400).json({ success: false, message: 'Invalid file content type' });
+      return res.status(400).json({ success: false, message: `File type ${detectedType.mime} not allowed` });
     }
 
     // Use upload_stream for memory storage adapter with robust piping
@@ -41,7 +60,7 @@ export const uploadFile = async (req: Request, res: Response) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'knot_chat_uploads',
-          resource_type: 'auto',
+          resource_type: resourceType,
           public_id: `${Date.now()}_${originalname.replace(/[^a-zA-Z0-9_.-]/g, '')}`,
         },
         (error, result) => {
@@ -67,6 +86,12 @@ export const uploadFile = async (req: Request, res: Response) => {
       readableStream.pipe(uploadStream);
     });
 
+    let fileUrl = (uploadResult as any).secure_url;
+    // Fix: Injection of fl_attachment for raw files to trigger download and bypass 401 issues
+    if (resourceType === 'raw') {
+      fileUrl = fileUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/');
+    }
+
     const attachmentBytes = buffer.length;
     let attachmentPages: number | null = null;
     if (detectedType.mime === 'application/pdf') {
@@ -85,7 +110,7 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      fileUrl: (uploadResult as any).secure_url,
+      fileUrl,
       fileName: originalname,
       attachmentBytes,
       ...(attachmentPages != null ? { attachmentPages } : {}),
