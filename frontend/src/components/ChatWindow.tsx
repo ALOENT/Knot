@@ -124,35 +124,46 @@ async function handleFileAction(fileUrl: string | null | undefined, fileName?: s
 
   try {
     if (isMobile) {
-      // Mobile: window.open is usually most reliable for native download triggers
+      // Mobile browsers: direct window.open is usually allowed and triggers native downloaders
       const win = window.open(fileUrl, '_blank', 'noopener,noreferrer');
-      if (!win) throw new Error('Popup blocked. Please allow popups for this site.');
+      if (!win) alert('Popup blocked. Please allow popups to download files.');
     } else {
       let urlOrigin: string;
       try {
         urlOrigin = new URL(fileUrl).origin;
       } catch {
-        // Fallback for relative URLs or invalid strings
         urlOrigin = window.location.origin;
       }
       
       const isCrossOrigin = urlOrigin !== window.location.origin;
 
       if (!isCrossOrigin) {
+        // Same-origin: Anchor download works perfectly
         triggerDownload(fileUrl, targetName);
       } else {
-        // Cross-origin: 'download' attribute is ignored by browsers. Force via blob fetch.
+        // Cross-origin: 'download' attribute is ignored. 
+        // We pre-open a window to avoid the popup blocker after the async 'fetch' call.
+        const winFallback = window.open('', '_blank', 'noopener,noreferrer');
+        
         try {
           const resp = await fetch(fileUrl);
-          if (!resp.ok) throw new Error(`Fetch failed (HTTP ${resp.status})`);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const blob = await resp.blob();
           const localUrl = URL.createObjectURL(blob);
+          
+          if (winFallback) winFallback.close();
           triggerDownload(localUrl, targetName);
           setTimeout(() => URL.revokeObjectURL(localUrl), 30000);
         } catch (fetchErr) {
-          console.warn('Cross-origin blob fetch failed, falling back to direct open', fetchErr);
-          const win = window.open(fileUrl, '_blank', 'noopener,noreferrer');
-          if (!win) throw new Error('Popup blocked and download failed.');
+          console.warn('Direct blob fetch failed, falling back to new tab', fetchErr);
+          if (winFallback) {
+            // Update the already-opened tab to the file URL
+            winFallback.location.href = fileUrl;
+          } else {
+            // If the initial window.open was blocked, we try once more but it will likely fail
+            const winFinal = window.open(fileUrl, '_blank', 'noopener,noreferrer');
+            if (!winFinal) throw new Error('Download failed. Please allow popups and try again.');
+          }
         }
       }
     }

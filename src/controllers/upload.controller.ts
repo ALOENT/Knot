@@ -29,13 +29,6 @@ export const uploadFile = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Unable to determine file type or invalid content' });
     }
 
-    // Detect resource_type based on MIME
-    let resourceType: 'image' | 'video' | 'raw' = 'raw';
-    if (detectedType.mime.startsWith('image/')) {
-      resourceType = 'image';
-    } else if (detectedType.mime.startsWith('video/')) {
-      resourceType = 'video';
-    }
 
     const allowedMimeTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
