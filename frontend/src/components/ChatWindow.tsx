@@ -225,17 +225,24 @@ async function saveAttachmentToDevice(
     triggerBrowserDownload(blob, filename);
     return;
   }
-  const res = await fetch(attachmentStreamUrl(msg.id, 'attachment'), {
-    credentials: 'include',
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error('Download failed with:', res.status, errText);
-    throw new Error(`download ${res.status}`);
+  try {
+    const res = await api.get(`/upload/message/${msg.id}/file?mode=attachment`, {
+      responseType: 'blob',
+    });
+    const contentDisposition = res.headers['content-disposition'];
+    const extractedFilename = contentDisposition
+      ? contentDisposition.match(/filename\*=UTF-8''(.+)/)?.[1]
+      : null;
+    const finalFilename = extractedFilename ? decodeURIComponent(extractedFilename) : filename;
+    triggerBrowserDownload(res.data, finalFilename);
+  } catch (err: any) {
+    console.error('Download failed:', err);
+    if (err.response?.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    throw new Error(`download ${err.response?.status || 'error'}`);
   }
-  const blob = await res.blob();
-  triggerBrowserDownload(blob, filename);
 }
 
 function triggerBrowserDownload(blob: Blob, filename: string): void {
