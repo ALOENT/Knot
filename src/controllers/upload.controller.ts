@@ -56,15 +56,22 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     // Use upload_stream for memory storage adapter with robust piping
     const uploadResult = await new Promise((resolve, reject) => {
-      // Clean name: remove extension for public_id to avoid double extensions (.pdf.pdf)
-      const cleanName = originalname.substring(0, originalname.lastIndexOf('.')) || originalname;
-      const sanitizedName = cleanName.replace(/[^a-zA-Z0-9_.-]/g, '');
+      // Logic for public_id and extension handling:
+      // For 'raw' files, we MUST include the extension in the public_id or Cloudinary won't serve it with one.
+      // For 'image'/'video', Cloudinary appends the extension automatically, so we strip it to avoid duplicates (e.g. .pdf.pdf).
+      let finalPublicIdSuffix: string;
+      if (resourceType === 'raw') {
+        finalPublicIdSuffix = originalname.replace(/[^a-zA-Z0-9_.-]/g, '');
+      } else {
+        const cleanName = originalname.substring(0, originalname.lastIndexOf('.')) || originalname;
+        finalPublicIdSuffix = cleanName.replace(/[^a-zA-Z0-9_.-]/g, '');
+      }
 
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'knot_chat_uploads',
           resource_type: resourceType,
-          public_id: `${Date.now()}_${sanitizedName}`,
+          public_id: `${Date.now()}_${finalPublicIdSuffix}`,
         },
         (error, result) => {
           if (error) {
