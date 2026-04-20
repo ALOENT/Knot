@@ -101,25 +101,64 @@ function knotApiRoot(): string {
 
 const API_BASE = knotApiRoot();
 
-function handleFileAction(fileUrl: string | null | undefined, fileName?: string | null) {
+/**
+ * Robust file action handler: triggers local download for same-origin, 
+ * blob-fetch for cross-origin, and falls back to window.open if needed.
+ */
+async function handleFileAction(fileUrl: string | null | undefined, fileName?: string | null) {
   if (!fileUrl) return;
   
   const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const targetName = fileName || deriveAttachmentDisplayName(fileUrl);
 
-  if (isMobile) {
-    // Mobile browsers handle Cloudinary URLs with fl_attachment natively via window.open
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
-  } else {
-    // Desktop: Create a temporary anchor to attempt a direct download with a nice filename.
-    // This triggers the browser's native "Save As" flow for Cloudinary URLs with fl_attachment.
+  const triggerDownload = (url: string, name: string) => {
     const a = document.createElement('a');
-    a.href = fileUrl;
-    a.download = fileName || deriveAttachmentDisplayName(fileUrl);
+    a.href = url;
+    a.download = name;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  try {
+    if (isMobile) {
+      // Mobile: window.open is usually most reliable for native download triggers
+      const win = window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      if (!win) throw new Error('Popup blocked. Please allow popups for this site.');
+    } else {
+      let urlOrigin: string;
+      try {
+        urlOrigin = new URL(fileUrl).origin;
+      } catch {
+        // Fallback for relative URLs or invalid strings
+        urlOrigin = window.location.origin;
+      }
+      
+      const isCrossOrigin = urlOrigin !== window.location.origin;
+
+      if (!isCrossOrigin) {
+        triggerDownload(fileUrl, targetName);
+      } else {
+        // Cross-origin: 'download' attribute is ignored by browsers. Force via blob fetch.
+        try {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) throw new Error(`Fetch failed (HTTP ${resp.status})`);
+          const blob = await resp.blob();
+          const localUrl = URL.createObjectURL(blob);
+          triggerDownload(localUrl, targetName);
+          setTimeout(() => URL.revokeObjectURL(localUrl), 30000);
+        } catch (fetchErr) {
+          console.warn('Cross-origin blob fetch failed, falling back to direct open', fetchErr);
+          const win = window.open(fileUrl, '_blank', 'noopener,noreferrer');
+          if (!win) throw new Error('Popup blocked and download failed.');
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('handleFileAction error:', err);
+    alert(err.message || 'Could not complete the file action.');
   }
 }
 

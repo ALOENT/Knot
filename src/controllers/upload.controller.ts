@@ -60,7 +60,7 @@ export const uploadFile = async (req: Request, res: Response) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'knot_chat_uploads',
-          resource_type: resourceType,
+          resource_type: 'auto',
           public_id: `${Date.now()}_${originalname.replace(/[^a-zA-Z0-9_.-]/g, '')}`,
         },
         (error, result) => {
@@ -88,7 +88,7 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     let fileUrl = (uploadResult as any).secure_url;
     // Fix: Injection of fl_attachment for raw files to trigger download and bypass 401 issues
-    if (resourceType === 'raw') {
+    if ((uploadResult as any).resource_type === 'raw') {
       fileUrl = fileUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/');
     }
 
