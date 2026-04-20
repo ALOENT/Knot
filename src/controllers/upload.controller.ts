@@ -30,6 +30,12 @@ export const uploadFile = async (req: Request, res: Response) => {
     }
 
 
+    // Detect and force correct Cloudinary resource_type
+    // PDFs must be 'raw' for reliable file delivery; 'auto' often puts them in the 'image' bucket which fails to load in browsers.
+    const isImage = detectedType.mime.startsWith('image/');
+    const isVideo = detectedType.mime.startsWith('video/');
+    const resourceType = isImage ? 'image' : isVideo ? 'video' : 'raw';
+
     const allowedMimeTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'video/mp4', 'video/quicktime',
@@ -50,11 +56,15 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     // Use upload_stream for memory storage adapter with robust piping
     const uploadResult = await new Promise((resolve, reject) => {
+      // Clean name: remove extension for public_id to avoid double extensions (.pdf.pdf)
+      const cleanName = originalname.substring(0, originalname.lastIndexOf('.')) || originalname;
+      const sanitizedName = cleanName.replace(/[^a-zA-Z0-9_.-]/g, '');
+
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'knot_chat_uploads',
-          resource_type: 'auto',
-          public_id: `${Date.now()}_${originalname.replace(/[^a-zA-Z0-9_.-]/g, '')}`,
+          resource_type: resourceType,
+          public_id: `${Date.now()}_${sanitizedName}`,
         },
         (error, result) => {
           if (error) {
