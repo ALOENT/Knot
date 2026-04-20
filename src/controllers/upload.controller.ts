@@ -199,16 +199,23 @@ export const streamMessageAttachment = async (req: Request, res: Response, next:
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     let upstream: globalThis.Response;
+    let fetchError: string = '';
     try {
+      logger.info(`Fetching attachment from Cloudinary: ${message.fileUrl}`);
       upstream = await fetch(message.fileUrl, { signal: controller.signal });
+      logger.info(`Cloudinary response status: ${upstream.status} for messageId=${messageId}`);
     } catch (err: unknown) {
-      const e = err as { name?: string; message?: string };
+      const e = err as { name?: string; message?: string; cause?: string };
+      fetchError = e.message || e.name || 'unknown';
+      logger.error(
+        `Attachment upstream fetch failed messageId=${messageId} error=${fetchError} cause=${e.cause || 'none'}`,
+      );
       if (e?.name === 'AbortError') {
         logger.error(
           `Attachment upstream fetch aborted messageId=${messageId} name=${e.name} message=${e.message ?? ''}`,
         );
         if (!res.headersSent) {
-          return res.status(502).json({ success: false, message: 'Could not retrieve file' });
+          return res.status(502).json({ success: false, message: 'Could not retrieve file (timeout)' });
         }
         return;
       }
@@ -218,7 +225,7 @@ export const streamMessageAttachment = async (req: Request, res: Response, next:
     }
 
     if (!upstream.ok) {
-      logger.error(`Attachment upstream ${upstream.status} for message ${messageId}`);
+      logger.error(`Attachment upstream ${upstream.status} for message ${messageId} URL: ${message.fileUrl}`);
       if (!res.headersSent) {
         return res.status(502).json({ success: false, message: 'Could not retrieve file' });
       }

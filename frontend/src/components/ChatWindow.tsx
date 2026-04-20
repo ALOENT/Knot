@@ -225,6 +225,10 @@ async function saveAttachmentToDevice(
     triggerBrowserDownload(blob, filename);
     return;
   }
+
+  let downloadBlob: Blob | null = null;
+  let downloadedFilename = filename;
+
   try {
     const res = await api.get(`/upload/message/${msg.id}/file?mode=attachment`, {
       responseType: 'blob',
@@ -233,16 +237,22 @@ async function saveAttachmentToDevice(
     const extractedFilename = contentDisposition
       ? contentDisposition.match(/filename\*=UTF-8''(.+)/)?.[1]
       : null;
-    const finalFilename = extractedFilename ? decodeURIComponent(extractedFilename) : filename;
-    triggerBrowserDownload(res.data, finalFilename);
-  } catch (err: any) {
-    console.error('Download failed:', err);
-    if (err.response?.status === 401) {
-      window.location.href = '/login';
-      return;
+    downloadedFilename = extractedFilename ? decodeURIComponent(extractedFilename) : filename;
+    downloadBlob = res.data;
+  } catch (apiErr: any) {
+    console.warn('Backend download failed, falling back to direct Cloudinary URL');
+    const directRes = await fetch(msg.fileUrl);
+    if (!directRes.ok) {
+      throw new Error('fetch failed');
     }
-    throw new Error(`download ${err.response?.status || 'error'}`);
+    downloadBlob = await directRes.blob();
   }
+
+  if (!downloadBlob) {
+    throw new Error('No data received');
+  }
+
+  triggerBrowserDownload(downloadBlob, downloadedFilename);
 }
 
 function triggerBrowserDownload(blob: Blob, filename: string): void {
