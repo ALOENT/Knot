@@ -101,9 +101,23 @@ function knotApiRoot(): string {
 
 const API_BASE = knotApiRoot();
 
-/** Authenticated stream URL (session cookie); Cloudinary URL is never opened directly for docs. */
-function attachmentStreamUrl(messageId: string, mode: 'inline' | 'attachment'): string {
-  return `${API_BASE}/upload/message/${messageId}/file?mode=${mode}`;
+/**
+ * Open Cloudinary URL in a new tab. Programmatic anchor fallback for downloads.
+ */
+function handleFileAction(fileUrl: string | null | undefined, fileName?: string | null) {
+  if (!fileUrl) return;
+  
+  // Create a temporary anchor to attempt a direct download with a nice filename.
+  // Note: 'download' attribute usually only works for same-origin or when headers allow.
+  // For Cloudinary, it will likely just open in a new tab if CORS prevents direct download.
+  const a = document.createElement('a');
+  a.href = fileUrl;
+  a.download = fileName || deriveAttachmentDisplayName(fileUrl);
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function formatBytesLabel(n: number | null | undefined): string {
@@ -201,74 +215,7 @@ function cloudinaryPdfCoverThumbnailUrl(fileUrl: string): string | null {
   return null;
 }
 
-/** Get inline view URL for PDF (for viewing in lightbox/browser). */
-function cloudinaryPdfInlineUrl(fileUrl: string): string {
-  const lower = fileUrl.toLowerCase();
-  if (lower.includes('/raw/upload/')) {
-    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_1200,h_1560,c_limit,q_best,f_jpg/');
-  }
-  if (lower.includes('/image/upload/')) {
-    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_1200,h_1560,c_limit,q_best,f_jpg/');
-  }
-  return fileUrl;
-}
 
-async function saveAttachmentToDevice(
-  msg: Pick<Message, 'id' | 'fileUrl'> & { fileName?: string | null },
-): Promise<void> {
-  if (!msg.fileUrl) return;
-  const filename = deriveAttachmentDisplayName(msg.fileUrl, msg.fileName);
-  if (msg.id.startsWith('temp-')) {
-    const res = await fetch(msg.fileUrl);
-    if (!res.ok) throw new Error('fetch failed');
-    const blob = await res.blob();
-    triggerBrowserDownload(blob, filename);
-    return;
-  }
-
-  let downloadBlob: Blob | null = null;
-  let downloadedFilename = filename;
-
-  try {
-    const res = await api.get(`/upload/message/${msg.id}/file?mode=attachment`, {
-      responseType: 'blob',
-    });
-    const contentDisposition = res.headers['content-disposition'];
-    const extractedFilename = contentDisposition
-      ? contentDisposition.match(/filename\*=UTF-8''(.+)/)?.[1]
-      : null;
-    downloadedFilename = extractedFilename ? decodeURIComponent(extractedFilename) : filename;
-    downloadBlob = res.data;
-  } catch (apiErr: any) {
-    console.warn('Backend download failed, falling back to direct Cloudinary URL');
-    const directRes = await fetch(msg.fileUrl);
-    if (!directRes.ok) {
-      throw new Error('fetch failed');
-    }
-    downloadBlob = await directRes.blob();
-  }
-
-  if (!downloadBlob) {
-    throw new Error('No data received');
-  }
-
-  triggerBrowserDownload(downloadBlob, downloadedFilename);
-}
-
-function triggerBrowserDownload(blob: Blob, filename: string): void {
-  const u = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = u;
-  a.download = filename;
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  // Defer revoke + DOM cleanup so the browser can start the download without racing the blob URL teardown.
-  window.setTimeout(() => {
-    URL.revokeObjectURL(u);
-    a.remove();
-  }, 2500);
-}
 
 /**
  * WhatsApp-style chat date pill label, relative to `now` (pass real "current" time at render).
@@ -331,14 +278,6 @@ export default function ChatWindow({
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   /** Advances at local midnight so date separators recompute (Today/Yesterday/weekday). */
   const [nowAnchor, setNowAnchor] = useState(() => new Date());
-  const [imagePreview, setImagePreview] = useState<{
-    src: string;
-    title: string;
-    id: string;
-    fileUrl: string;
-    fileName?: string | null;
-    showSave: boolean;
-  } | null>(null);
   /** Fixed-position portal so menu is not clipped by scroll parents and closes reliably. */
   const [attachmentMenu, setAttachmentMenu] = useState<{
     top: number;
@@ -455,7 +394,6 @@ export default function ChatWindow({
       if (e.key === 'Escape') {
         setIsMenuOpen(false);
         setShowEmojiPicker(false);
-        setImagePreview(null);
         setAttachmentMenu(null);
       }
     };
@@ -913,29 +851,17 @@ export default function ChatWindow({
                       displayName,
                     );
 
-                    const openImagePreview = () => {
+                    const openFile = () => {
                       setAttachmentMenu(null);
-                      setImagePreview({
-                        src: previewUrl,
-                        title: displayName,
-                        id: msg.id,
-                        fileUrl,
-                        fileName: msg.fileName || null,
-                        showSave: showDl,
-                      });
+                      handleFileAction(fileUrl, msg.fileName);
                     };
 
-                    const runDownload = async () => {
+                    const runDownload = () => {
                       setAttachmentMenu(null);
-                      try {
-                        await saveAttachmentToDevice(msg);
-                        if (currentUserId) {
-                          markReceiverSavedAttachment(currentUserId, msg.id);
-                          setDlBump((n) => n + 1);
-                        }
-                      } catch (err) {
-                        console.error('Download failed:', err);
-                        alert('Could not download this file. Please try again.');
+                      handleFileAction(fileUrl, msg.fileName);
+                      if (currentUserId) {
+                        markReceiverSavedAttachment(currentUserId, msg.id);
+                        setDlBump((n) => n + 1);
                       }
                     };
 
@@ -960,7 +886,7 @@ export default function ChatWindow({
                           <div className="rounded-xl overflow-hidden">
                             <button
                               type="button"
-                              onClick={openImagePreview}
+                              onClick={openFile}
                               className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                             >
                               <img
@@ -995,17 +921,7 @@ export default function ChatWindow({
                     const showPdfThumb = !!pdfThumb && !thumbFailed;
 
                     const openPdfInline = () => {
-                      const inlineUrl = msg.id.startsWith('temp-')
-                        ? cloudinaryPdfInlineUrl(fileUrl)
-                        : attachmentStreamUrl(msg.id, 'inline');
-                      setImagePreview({
-                        src: inlineUrl,
-                        title: displayName,
-                        id: msg.id,
-                        fileUrl,
-                        fileName: msg.fileName || null,
-                        showSave: showDl,
-                      });
+                      handleFileAction(fileUrl, msg.fileName);
                     };
 
                     return (
@@ -1036,27 +952,30 @@ export default function ChatWindow({
                             <FileText className="h-5 w-5 text-red-500" strokeWidth={2} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <button
-                              type="button"
-                              onClick={openPdfInline}
-                              className="text-[13px] font-bold text-white truncate pr-2 text-left hover:text-blue-400 transition-colors"
-                              title="Click to open"
-                            >
+                            <p className="text-[13px] font-bold text-white truncate pr-2">
                               {displayName}
-                            </button>
+                            </p>
                             <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">
                               {metaLine || 'Document'}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {showDl && (
+                          <div className="flex items-center gap-2">
+                            {isMine ? (
+                              <button
+                                type="button"
+                                onClick={openFile}
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] font-bold text-blue-400 hover:bg-blue-500/20 transition-colors"
+                              >
+                                OPEN
+                              </button>
+                            ) : (
                               <button
                                 type="button"
                                 onClick={runDownload}
-                                title="Download"
-                                className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                                className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-[11px] font-bold text-green-400 hover:bg-green-500/20 transition-colors flex items-center gap-1.5"
                               >
-                                <Download className="h-4 w-4" />
+                                <Download className="h-3 w-3" />
+                                {showDl ? 'DOWNLOAD' : 'OPEN'}
                               </button>
                             )}
                             <button
@@ -1287,74 +1206,6 @@ export default function ChatWindow({
         }
       `}</style>
 
-      {/* Image lightbox — tap photo to open; download uses authed API (no raw Cloudinary tab). */}
-      <AnimatePresence>
-        {imagePreview && (
-          <motion.div
-            key="img-lightbox"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-md p-3 md:p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Image preview"
-            onClick={() => setImagePreview(null)}
-          >
-            <div
-              className="flex items-center justify-between gap-3 shrink-0 mb-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="text-sm font-medium text-gray-300 truncate min-w-0 flex-1">{imagePreview.title}</p>
-              <div className="flex items-center gap-2 shrink-0">
-                {imagePreview.showSave ? (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await saveAttachmentToDevice({
-                          id: imagePreview.id,
-                          fileUrl: imagePreview.fileUrl,
-                          fileName: imagePreview.fileName,
-                        });
-                        if (currentUserId) {
-                          markReceiverSavedAttachment(currentUserId, imagePreview.id);
-                          setDlBump((n) => n + 1);
-                        }
-                        setImagePreview(null);
-                      } catch {
-                        alert('Could not download this file. Please try again.');
-                      }
-                    }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-xs font-semibold text-white hover:bg-white/15"
-                  >
-                    <Download className="h-4 w-4" />
-                    Save
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setImagePreview(null)}
-                  className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/15"
-                  aria-label="Close preview"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-            <div
-              className="flex-1 flex items-center justify-center min-h-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img
-                src={imagePreview.src}
-                alt={imagePreview.title}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Report User Modal */}
       <AnimatePresence>
@@ -1462,19 +1313,15 @@ export default function ChatWindow({
                 <button
                   type="button"
                   className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-100 hover:bg-white/[0.07] flex items-center gap-2"
-                  onClick={async () => {
-                    const t = attachmentMenu.downloadTarget;
-                    setAttachmentMenu(null);
-                    try {
-                      await saveAttachmentToDevice(t);
-                      if (currentUserId) {
-                        markReceiverSavedAttachment(currentUserId, t.id);
-                        setDlBump((n) => n + 1);
-                      }
-                    } catch {
-                      alert('Could not download this file. Please try again.');
-                    }
-                  }}
+                   onClick={() => {
+                     const t = attachmentMenu.downloadTarget;
+                     setAttachmentMenu(null);
+                     handleFileAction(t.fileUrl, t.fileName);
+                     if (currentUserId) {
+                       markReceiverSavedAttachment(currentUserId, t.id);
+                       setDlBump((n) => n + 1);
+                     }
+                   }}
                 >
                   <Download className="h-3.5 w-3.5 shrink-0" />
                   Save to device
