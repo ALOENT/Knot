@@ -515,8 +515,8 @@ export default function ChatWindow({
     if (!msg.fileUrl) return null;
     const fileUrl = msg.fileUrl;
     const resourceType = msg.resourceType;
-    const originalName = msg.originalName || msg.fileName || 'File';
-    const fileSize = msg.fileSize ?? msg.attachmentBytes;
+    const originalName = msg.fileName || 'File';
+    const fileSize = msg.attachmentBytes;
 
     // Image bubble
     if (resourceType === 'image') {
