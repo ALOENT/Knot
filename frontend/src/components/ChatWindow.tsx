@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, Download, FileText } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, FileText, Loader2 } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
@@ -25,6 +25,9 @@ export interface Message {
   fileName?: string | null;
   attachmentBytes?: number | null;
   attachmentPages?: number | null;
+  resourceType?: 'image' | 'video' | 'raw';
+  originalName?: string | null;
+  fileSize?: number | null;
   senderId: string;
   receiverId: string;
   timestamp: string;
@@ -83,13 +86,6 @@ function parseMessageContent(text: string): React.ReactNode {
   });
 }
 
-/** Helper to check if a URL points to an image based on extension */
-function isImageFile(url: string | null | undefined): boolean {
-  if (!url) return false;
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-  return imageExtensions.some(ext => url.toLowerCase().includes(ext));
-}
-
 /**
  * NEXT_PUBLIC_API_URL is sometimes set without `/api` (e.g. http://localhost:5000).
  * Upload and attachment downloads must hit the `/api/...` routes.
@@ -101,122 +97,25 @@ function knotApiRoot(): string {
 
 const API_BASE = knotApiRoot();
 
-/**
- * Simple file action handler: triggers a new tab/download via anchor tag injection.
- * This approach does not require popup permissions and works reliably across browsers.
- */
-const handleFileAction = (fileUrl: string | null | undefined, fileName?: string | null) => {
-  if (!fileUrl) return;
-  
-  const link = document.createElement('a');
-  link.href = fileUrl;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  // Use download attribute if a filename is provided (best-effort)
-  if (fileName) {
-    link.download = fileName;
-  }
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-function formatBytesLabel(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n) || n < 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i += 1;
-  }
-  const rounded = i === 0 ? String(Math.round(v)) : v < 10 ? v.toFixed(1) : String(Math.round(v));
-  return `${rounded} ${units[i]}`;
+/** Format file size to human-readable KB/MB */
+function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** PDF: "N pages · size"; other attachments: size only when known. */
-function formatAttachmentMetaLine(
-  bytes: number | null | undefined,
-  pages: number | null | undefined,
-  fileUrl: string,
-  displayName: string,
-): string {
-  const lower = `${displayName} ${fileUrl}`.toLowerCase();
-  const isPdf = lower.includes('.pdf');
-  const size = formatBytesLabel(bytes);
-  if (isPdf && pages != null && pages > 0) {
-    const p = `${pages} page${pages === 1 ? '' : 's'}`;
-    return size ? `${p} · ${size}` : p;
-  }
-  return size;
-}
+/** Allowed MIME types for client-side validation */
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+]);
 
-function receiverMayDownloadAttachment(
-  msg: Pick<Message, 'id' | 'senderId'>,
-  currentUserId: string | undefined,
-): boolean {
-  if (!currentUserId) return false;
-  if (msg.senderId === currentUserId) return false;
-  if (typeof window === 'undefined') return true;
-  try {
-    return localStorage.getItem(`knot_attachment_dl_${currentUserId}_${msg.id}`) !== '1';
-  } catch {
-    return true;
-  }
-}
-
-function markReceiverSavedAttachment(currentUserId: string, messageId: string): void {
-  try {
-    localStorage.setItem(`knot_attachment_dl_${currentUserId}_${messageId}`, '1');
-  } catch {
-    /* ignore */
-  }
-}
-
-function deriveAttachmentDisplayName(fileUrl: string, fileName?: string | null): string {
-  if (fileName?.trim()) return fileName.trim();
-  try {
-    const seg = new URL(fileUrl).pathname.split('/').filter(Boolean).pop() || 'File';
-    return seg.replace(/^\d+_/, '') || 'File';
-  } catch {
-    return 'File';
-  }
-}
-
-/** PDFs (and other docs) may still use an `/image/upload/` path on Cloudinary — never treat those as photos. */
-function isChatDocumentAttachment(url: string): boolean {
-  const u = url.toLowerCase();
-  const path = u.split('?')[0];
-  if (path.endsWith('.pdf')) return true;
-  if (['/raw/upload/', '/video/upload/', '/auto/upload/'].some((s) => u.includes(s))) return true;
-  return ['.doc', '.docx', '.txt', '.zip', '.ppt', '.pptx', '.xls', '.xlsx'].some((ext) =>
-    path.endsWith(ext),
-  );
-}
-
-/** True only for real image deliveries (inline preview uses public Cloudinary URL). */
-function isChatImageAttachment(url: string | null | undefined): boolean {
-  if (!url) return false;
-  if (isChatDocumentAttachment(url)) return false;
-  if (url.includes('/image/upload/')) return true;
-  return isImageFile(url);
-}
-
-/** WhatsApp-style first page of a PDF (Cloudinary transformation). Falls back via onError in UI. */
-function cloudinaryPdfCoverThumbnailUrl(fileUrl: string): string | null {
-  if (!fileUrl.toLowerCase().includes('res.cloudinary.com')) return null;
-  if (!isChatDocumentAttachment(fileUrl) || !fileUrl.toLowerCase().includes('.pdf')) return null;
-  const lower = fileUrl.toLowerCase();
-  if (lower.includes('/raw/upload/')) {
-    return fileUrl.replace(/\/raw\/upload\//i, '/image/upload/pg_1,w_400,h_520,c_fill,q_best,f_jpg/');
-  }
-  if (lower.includes('/image/upload/')) {
-    return fileUrl.replace(/\/image\/upload\//i, '/image/upload/pg_1,w_400,h_520,c_fill,q_best,f_jpg/');
-  }
-  return null;
-}
-
-
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
  * WhatsApp-style chat date pill label, relative to `now` (pass real "current" time at render).
@@ -279,16 +178,8 @@ export default function ChatWindow({
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   /** Advances at local midnight so date separators recompute (Today/Yesterday/weekday). */
   const [nowAnchor, setNowAnchor] = useState(() => new Date());
-  /** Fixed-position portal so menu is not clipped by scroll parents and closes reliably. */
-  const [attachmentMenu, setAttachmentMenu] = useState<{
-    top: number;
-    left: number;
-    showPortalSave: boolean;
-    downloadTarget: Pick<Message, 'id' | 'fileUrl'> & { fileName?: string | null };
-  } | null>(null);
-  const [pdfThumbFailedIds, setPdfThumbFailedIds] = useState<Record<string, boolean>>({});
-  /** Bumps after marking localStorage so receiver download UI hides without reload. */
-  const [, setDlBump] = useState(0);
+  /** Track which files the receiver has downloaded (resets on page refresh — same as WhatsApp web) */
+  const [downloadedFiles, setDownloadedFiles] = useState<Set<string>>(new Set());
 
   const { 
     activeChat: activeUser, 
@@ -356,6 +247,27 @@ export default function ChatWindow({
     }
   };
 
+  /** Download handler for raw files (PDFs, docs) */
+  const handleDownload = async (fileUrl: string, fileName: string) => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+      // Mark as downloaded in local state so button changes to OPEN
+      setDownloadedFiles(prev => new Set(prev).add(fileUrl));
+    } catch {
+      // Fallback: just open in new tab
+      window.open(fileUrl, '_blank');
+    }
+  };
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -389,13 +301,12 @@ export default function ChatWindow({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle Escape to close menus / lightbox
+  // Handle Escape to close menus
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsMenuOpen(false);
         setShowEmojiPicker(false);
-        setAttachmentMenu(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -439,22 +350,33 @@ export default function ChatWindow({
     const trimmed = input.trim();
     if ((!trimmed && !selectedFile) || !activeUser || isUploading || isBlockedByMe) return;
 
-    const attachedOriginalName = selectedFile?.name;
     let fileUrl: string | undefined = undefined;
     let uploadedFileName: string | undefined = undefined;
     let uploadedBytes: number | undefined = undefined;
-    let uploadedPages: number | undefined = undefined;
+    let uploadedResourceType: string | undefined = undefined;
+    let uploadedOriginalName: string | undefined = undefined;
+    let uploadedFileSize: number | undefined = undefined;
 
     if (selectedFile) {
+      // Client-side validation
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        alert('File size exceeds 10MB limit.');
+        return;
+      }
+      if (!ALLOWED_MIME_TYPES.has(selectedFile.type)) {
+        alert('File type not allowed.');
+        return;
+      }
+
       setIsUploading(true);
       setUploadProgress(0);
       
       try {
         const uploaded = await new Promise<{
           fileUrl: string;
-          fileName?: string;
-          attachmentBytes?: number;
-          attachmentPages?: number;
+          resourceType: string;
+          originalName: string;
+          fileSize: number;
         }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
@@ -474,11 +396,9 @@ export default function ChatWindow({
                 if (response.success) {
                   resolve({
                     fileUrl: response.fileUrl,
-                    fileName: response.fileName || attachedOriginalName,
-                    attachmentBytes:
-                      typeof response.attachmentBytes === 'number' ? response.attachmentBytes : undefined,
-                    attachmentPages:
-                      typeof response.attachmentPages === 'number' ? response.attachmentPages : undefined,
+                    resourceType: response.resourceType,
+                    originalName: response.originalName,
+                    fileSize: response.fileSize,
                   });
                 } else {
                   reject(new Error(response.message || 'Upload failed'));
@@ -513,9 +433,11 @@ export default function ChatWindow({
         });
         
         fileUrl = uploaded.fileUrl;
-        uploadedFileName = uploaded.fileName;
-        uploadedBytes = uploaded.attachmentBytes;
-        uploadedPages = uploaded.attachmentPages;
+        uploadedFileName = uploaded.originalName;
+        uploadedBytes = uploaded.fileSize;
+        uploadedResourceType = uploaded.resourceType;
+        uploadedOriginalName = uploaded.originalName;
+        uploadedFileSize = uploaded.fileSize;
       } catch (error: any) {
         if (error.message !== 'Upload cancelled') {
           console.error("Failed to upload file", error);
@@ -529,7 +451,17 @@ export default function ChatWindow({
       setUploadProgress(0);
     }
 
-    onSendMessage(trimmed, fileUrl, replyingTo?.id, uploadedFileName, uploadedBytes, uploadedPages);
+    onSendMessage(
+      trimmed,
+      fileUrl,
+      replyingTo?.id,
+      uploadedFileName,
+      uploadedBytes,
+      undefined, // attachmentPages — not used in new flow
+      uploadedResourceType,
+      uploadedOriginalName,
+      uploadedFileSize,
+    );
     setInput('');
     setSelectedFile(null);
     setShowEmojiPicker(false);
@@ -553,6 +485,17 @@ export default function ChatWindow({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Client-side validation on select
+      if (file.size > MAX_FILE_SIZE) {
+        alert('File size exceeds 10MB limit.');
+        e.target.value = '';
+        return;
+      }
+      if (!ALLOWED_MIME_TYPES.has(file.type)) {
+        alert('File type not allowed.');
+        e.target.value = '';
+        return;
+      }
       setSelectedFile(file);
     }
     // Reset input so selecting the same file works
@@ -570,6 +513,191 @@ export default function ChatWindow({
       setIsUploading(false);
       setUploadProgress(0);
     }
+  };
+
+  /* ── File bubble rendering ── */
+  const renderFileBubble = (msg: Message, isMine: boolean) => {
+    if (!msg.fileUrl) return null;
+    const fileUrl = msg.fileUrl;
+    const resourceType = msg.resourceType;
+    const originalName = msg.originalName || msg.fileName || 'File';
+    const fileSize = msg.fileSize ?? msg.attachmentBytes;
+
+    // Image bubble
+    if (resourceType === 'image') {
+      return (
+        <div className="mt-2">
+          <img
+            src={fileUrl}
+            alt={originalName}
+            loading="lazy"
+            onClick={() => window.open(fileUrl, '_blank')}
+            style={{
+              width: '100%',
+              maxWidth: '280px',
+              maxHeight: '200px',
+              objectFit: 'cover',
+              borderRadius: '12px',
+              cursor: 'pointer',
+            }}
+            className="bg-black/30"
+          />
+        </div>
+      );
+    }
+
+    // Video bubble
+    if (resourceType === 'video') {
+      return (
+        <div className="mt-2">
+          <video
+            controls
+            src={fileUrl}
+            style={{
+              width: '100%',
+              maxWidth: '280px',
+              borderRadius: '12px',
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Raw file bubble (PDFs, documents) — fixed card
+    const isDownloaded = downloadedFiles.has(fileUrl);
+    const showDownload = !isMine && !isDownloaded;
+
+    return (
+      <div
+        className="mt-2 flex items-center gap-3"
+        style={{
+          width: '280px',
+          height: '72px',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '12px',
+          padding: '0 12px',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* PDF/Doc icon */}
+        <div className="shrink-0 flex items-center justify-center" style={{ width: 36, height: 36 }}>
+          <FileText className="text-red-500" style={{ width: 24, height: 24 }} />
+        </div>
+
+        {/* Filename + size */}
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-[13px] font-bold text-white"
+            style={{
+              maxWidth: '180px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={originalName}
+          >
+            {originalName}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-0.5 font-medium">
+            {formatFileSize(fileSize)}
+          </p>
+        </div>
+
+        {/* Action button */}
+        <div className="shrink-0">
+          {showDownload ? (
+            <button
+              type="button"
+              onClick={() => handleDownload(fileUrl, originalName)}
+              style={{
+                background: '#2563eb',
+                color: '#fff',
+                padding: '4px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              DOWNLOAD
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => window.open(fileUrl, '_blank')}
+              style={{
+                background: '#2563eb',
+                color: '#fff',
+                padding: '4px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              OPEN
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  /* ── Legacy file detection for old messages without resourceType ── */
+  const renderLegacyFileBubble = (msg: Message, isMine: boolean) => {
+    if (!msg.fileUrl) return null;
+    const fileUrl = msg.fileUrl;
+    const lower = fileUrl.toLowerCase();
+    
+    // Try to detect type from URL for legacy messages
+    const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => lower.includes(ext)) 
+      || lower.includes('/image/upload/');
+    const isVideo = lower.includes('.mp4') || lower.includes('/video/upload/');
+    
+    if (isImage) {
+      return (
+        <div className="mt-2">
+          <img
+            src={fileUrl}
+            alt={msg.fileName || 'Image'}
+            loading="lazy"
+            onClick={() => window.open(fileUrl, '_blank')}
+            style={{
+              width: '100%',
+              maxWidth: '280px',
+              maxHeight: '200px',
+              objectFit: 'cover',
+              borderRadius: '12px',
+              cursor: 'pointer',
+            }}
+            className="bg-black/30"
+          />
+        </div>
+      );
+    }
+    
+    if (isVideo) {
+      return (
+        <div className="mt-2">
+          <video
+            controls
+            src={fileUrl}
+            style={{
+              width: '100%',
+              maxWidth: '280px',
+              borderRadius: '12px',
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Treat as raw/document
+    const tempMsg = { ...msg, resourceType: 'raw' as const };
+    return renderFileBubble(tempMsg, isMine);
   };
 
   // ── Empty state ──
@@ -835,162 +963,14 @@ export default function ChatWindow({
                       {parseMessageContent(msg.content)}
                     </p>
                   )}
-                  {!msg.isDeleted && msg.fileUrl && (() => {
-                    const fileUrl = msg.fileUrl!;
-                    const displayName = deriveAttachmentDisplayName(fileUrl, msg.fileName || null);
-                    const previewUrl = fileUrl;
-                    const downloadTarget = {
-                      id: msg.id,
-                      fileUrl,
-                      fileName: msg.fileName || null,
-                    };
-                    const showDl = receiverMayDownloadAttachment(msg, currentUserId);
-                    const metaLine = formatAttachmentMetaLine(
-                      msg.attachmentBytes,
-                      msg.attachmentPages,
-                      fileUrl,
-                      displayName,
-                    );
 
-                    const openFile = () => {
-                      setAttachmentMenu(null);
-                      handleFileAction(fileUrl, msg.fileName);
-                    };
+                  {/* File attachments */}
+                  {!msg.isDeleted && msg.fileUrl && (
+                    msg.resourceType
+                      ? renderFileBubble(msg, isMine)
+                      : renderLegacyFileBubble(msg, isMine)
+                  )}
 
-                    const runDownload = () => {
-                      setAttachmentMenu(null);
-                      handleFileAction(fileUrl, msg.fileName);
-                      if (currentUserId) {
-                        markReceiverSavedAttachment(currentUserId, msg.id);
-                        setDlBump((n) => n + 1);
-                      }
-                    };
-
-                    const openDotsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.stopPropagation();
-                      const r = e.currentTarget.getBoundingClientRect();
-                      const menuWidth = 176;
-                      const left = Math.max(
-                        10,
-                        Math.min(r.right - menuWidth, window.innerWidth - menuWidth - 10),
-                      );
-                      setAttachmentMenu((cur) =>
-                        cur?.downloadTarget.id === msg.id
-                          ? null
-                          : { top: r.bottom + 6, left, downloadTarget, showPortalSave: true },
-                      );
-                    };
-
-                    if (isChatImageAttachment(fileUrl)) {
-                      return (
-                        <div className="mt-2 rounded-xl border border-white/5 bg-black/20 relative z-0 overflow-visible">
-                          <div className="rounded-xl overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={openFile}
-                              className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-                            >
-                              <img
-                                src={previewUrl}
-                                alt={displayName}
-                                loading="lazy"
-                                className="max-h-60 w-full object-cover cursor-zoom-in bg-black/30"
-                              />
-                            </button>
-                          </div>
-                          {metaLine ? (
-                            <p className="text-[10px] text-zinc-500 px-1 pt-1.5">{metaLine}</p>
-                          ) : null}
-                          {showDl ? (
-                            <div className="absolute top-2 right-2 z-20">
-                              <button
-                                type="button"
-                                aria-label="Attachment options"
-                                onClick={openDotsMenu}
-                                className="h-8 w-8 rounded-full bg-black/65 border border-white/12 flex items-center justify-center text-gray-100 hover:bg-black/80 shadow-md backdrop-blur-sm"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    }
-
-                    const pdfThumb = cloudinaryPdfCoverThumbnailUrl(fileUrl);
-                    const thumbFailed = !!pdfThumbFailedIds[msg.id];
-                    const showPdfThumb = !!pdfThumb && !thumbFailed;
-
-                    const openPdfInline = () => {
-                      handleFileAction(fileUrl, msg.fileName);
-                    };
-
-                    return (
-                      <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/30 relative overflow-hidden min-w-[280px] max-w-full shadow-lg">
-                        {showPdfThumb ? (
-                          <button
-                            type="button"
-                            onClick={openPdfInline}
-                            className="h-24 w-full overflow-hidden bg-zinc-950 border-b border-white/5 relative block"
-                          >
-                            <img
-                              src={pdfThumb!}
-                              alt=""
-                              loading="lazy"
-                              className="w-full h-full object-cover object-top opacity-80"
-                              onError={() =>
-                                setPdfThumbFailedIds((prev) => ({ ...prev, [msg.id]: true }))
-                              }
-                            />
-                            <div className="absolute top-2 left-2 bg-red-600/90 text-[9px] font-bold text-white px-1.5 py-0.5 rounded shadow-sm">
-                              PDF
-                            </div>
-                          </button>
-                        ) : null}
-                        
-                        <div className="p-2.5 px-3 flex items-center gap-3">
-                          <div className="h-9 w-9 shrink-0 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                            <FileText className="h-5 w-5 text-red-500" strokeWidth={2} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-bold text-white truncate pr-2">
-                              {displayName}
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">
-                              {metaLine || 'Document'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {isMine ? (
-                              <button
-                                type="button"
-                                onClick={openFile}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] font-bold text-blue-400 hover:bg-blue-500/20 transition-colors"
-                              >
-                                OPEN
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={runDownload}
-                                className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-[11px] font-bold text-green-400 hover:bg-green-500/20 transition-colors flex items-center gap-1.5"
-                              >
-                                <Download className="h-3 w-3" />
-                                {showDl ? 'DOWNLOAD' : 'OPEN'}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={openDotsMenu}
-                              className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
                   <span
                     className={`flex items-center gap-1 text-[10px] mt-1.5 font-medium tracking-tight ${
                       isMine ? 'justify-end text-blue-200/40' : 'justify-start text-gray-500'
@@ -1140,7 +1120,7 @@ export default function ChatWindow({
             type="file"
             onChange={handleFileSelect}
             className="hidden"
-            accept="image/*,.pdf,.doc,.docx,.txt"
+            accept="image/*,video/mp4,.pdf,.doc,.docx,.txt"
           />
 
           <motion.button
@@ -1294,44 +1274,6 @@ export default function ChatWindow({
         isOpen={isProfilePanelOpen}
         onClose={() => setIsProfilePanelOpen(false)}
       />
-
-      {attachmentMenu &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <>
-            <div
-              className="fixed inset-0 z-[85]"
-              aria-hidden
-              onMouseDown={() => setAttachmentMenu(null)}
-            />
-            <div
-              role="menu"
-              className="fixed z-[90] min-w-[176px] rounded-xl bg-[#16161a] border border-white/10 shadow-2xl py-1"
-              style={{ top: attachmentMenu.top, left: attachmentMenu.left }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {attachmentMenu.showPortalSave ? (
-                <button
-                  type="button"
-                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-100 hover:bg-white/[0.07] flex items-center gap-2"
-                   onClick={() => {
-                     const t = attachmentMenu.downloadTarget;
-                     setAttachmentMenu(null);
-                     handleFileAction(t.fileUrl, t.fileName);
-                     if (currentUserId) {
-                       markReceiverSavedAttachment(currentUserId, t.id);
-                       setDlBump((n) => n + 1);
-                     }
-                   }}
-                >
-                  <Download className="h-3.5 w-3.5 shrink-0" />
-                  Save to device
-                </button>
-              ) : null}
-            </div>
-          </>,
-          document.body,
-        )}
     </div>
   );
 }
