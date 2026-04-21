@@ -70,7 +70,6 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         timestamp: true,
         status: true,
         replyToId: true,
-        replyToId: true,
         replyTo: {
           select: {
             id: true,

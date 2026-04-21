@@ -35,6 +35,9 @@ interface ChatContextType {
     fileName?: string,
     attachmentBytes?: number,
     attachmentPages?: number,
+    resourceType?: string,
+    originalName?: string,
+    fileSize?: number,
   ) => void;
   isLoadingMessages: boolean;
   setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
@@ -248,6 +251,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 fileName: undefined,
                 attachmentBytes: undefined,
                 attachmentPages: undefined,
+                resourceType: undefined,
+                originalName: undefined,
+                fileSize: undefined,
               }
             : m,
         ),
@@ -328,6 +334,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       fileName?: string,
       attachmentBytes?: number,
       attachmentPages?: number,
+      resourceType?: string,
+      originalName?: string,
+      fileSize?: number,
     ) => {
       if (!socket || !activeChat || !currentUser) return;
       if (currentUser.isBanned) {
@@ -352,6 +361,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         fileName: fileName?.trim() || undefined,
         attachmentBytes: bytes,
         attachmentPages: pages,
+        resourceType: resourceType as Message['resourceType'],
+        originalName: originalName || undefined,
+        fileSize: typeof fileSize === 'number' ? fileSize : undefined,
         senderId: currentUser.id,
         receiverId: activeChat.id,
         timestamp: new Date().toISOString(),
@@ -375,6 +387,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         fileName: fileName?.trim() || undefined,
         attachmentBytes: bytes,
         attachmentPages: pages,
+        resourceType: resourceType || undefined,
+        originalName: originalName || undefined,
+        fileSize: typeof fileSize === 'number' ? fileSize : undefined,
         replyToId,
       });
     },
@@ -408,6 +423,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
               fileName: undefined,
               attachmentBytes: undefined,
               attachmentPages: undefined,
+              resourceType: undefined,
+              originalName: undefined,
+              fileSize: undefined,
             }
           : m,
       ),
