@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, FileText, Loader2 } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, ArrowLeft, X, BadgeCheck, Flag, Check, CheckCheck, Trash2, Reply, FileText } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useChat } from '@/providers/ChatProvider';
 import { api } from '@/lib/api';
