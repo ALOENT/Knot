@@ -62,10 +62,14 @@ export const getMessages = async (req: Request, res: Response, next: NextFunctio
         fileName: true,
         attachmentBytes: true,
         attachmentPages: true,
+        resourceType: true,
+        originalName: true,
+        fileSize: true,
         senderId: true,
         receiverId: true,
         timestamp: true,
         status: true,
+        replyToId: true,
         replyToId: true,
         replyTo: {
           select: {
