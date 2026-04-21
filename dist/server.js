@@ -74,13 +74,22 @@ app.use('/api/health', health_routes_1.default);
 app.use('/api/upload', upload_routes_1.default);
 // Global Error Handling Middleware
 app.use(error_middleware_1.errorHandler);
-const PORT = env_1.env.PORT || 5000;
+const PORT = Number.parseInt(env_1.env.PORT, 10);
+const listenPort = Number.isFinite(PORT) && PORT > 0 ? PORT : 5000;
 const startServer = async () => {
     try {
         await db_1.prisma.$connect();
         logger_1.logger.info('Database connected successfully');
-        httpServer.listen(PORT, () => {
-            logger_1.logger.info(`Server running in ${env_1.env.NODE_ENV} mode on port ${PORT}`);
+        httpServer.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                logger_1.logger.error(`Port ${listenPort} is already in use (another process is listening). Stop that process or set PORT in your environment to a free port.`);
+                process.exit(1);
+            }
+            logger_1.logger.error('HTTP server failed to start', err);
+            process.exit(1);
+        });
+        httpServer.listen(listenPort, () => {
+            logger_1.logger.info(`Server running in ${env_1.env.NODE_ENV} mode on port ${listenPort}`);
         });
     }
     catch (error) {

@@ -12,5 +12,7 @@ router.get('/', user_controller_1.getAllUsers);
 router.put('/profile', user_controller_1.updateProfile);
 router.post('/block/:userId', user_controller_1.blockUser);
 router.delete('/block/:userId', user_controller_1.unblockUser);
+router.get('/warnings', user_controller_1.getWarnings);
+router.put('/warnings/:id/dismiss', user_controller_1.dismissWarning);
 router.get('/:userId', user_controller_1.getUserProfile);
 exports.default = router;

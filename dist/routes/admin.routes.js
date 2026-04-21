@@ -14,4 +14,5 @@ router.put('/update-status', admin_controller_1.updateUserStatus);
 // Reports management
 router.get('/reports', admin_controller_1.getReports);
 router.put('/reports/:id/resolve', admin_controller_1.resolveReport);
+router.post('/warn/:userId', admin_controller_1.warnUser);
 exports.default = router;

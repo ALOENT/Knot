@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBlockedUsers = exports.unblockUser = exports.blockUser = exports.getUserProfile = exports.updateProfile = exports.getAllUsers = exports.searchUsers = void 0;
+exports.dismissWarning = exports.getWarnings = exports.getBlockedUsers = exports.unblockUser = exports.blockUser = exports.getUserProfile = exports.updateProfile = exports.getAllUsers = exports.searchUsers = void 0;
 const db_1 = require("../utils/db");
+const logger_1 = require("../utils/logger");
 const zod_1 = require("zod");
 const idSchema = zod_1.z.string().uuid('Invalid ID format');
 const updateProfileSchema = zod_1.z.object({
@@ -185,7 +186,7 @@ const getUserProfile = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Authentication required' });
         }
         const userId = req.params.userId;
-        // Check for block
+        // Check for block (Bidirectional)
         const block = await db_1.prisma.block.findFirst({
             where: {
                 OR: [
@@ -194,9 +195,6 @@ const getUserProfile = async (req, res) => {
                 ]
             }
         });
-        if (block) {
-            return res.status(403).json({ success: false, message: 'You cannot view this profile.' });
-        }
         const user = await db_1.prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -215,7 +213,15 @@ const getUserProfile = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
-        res.status(200).json({ success: true, user });
+        // Redact info if blocked
+        if (block) {
+            user.profilePic = null;
+            user.bio = null;
+            user.banner = null;
+            user.isOnline = false;
+            user.lastSeen = null; // Fix: use null for never seen (Issue 6)
+        }
+        return res.status(200).json({ success: true, user });
     }
     catch (error) {
         res.status(500).json({ success: false, message: 'Server error while fetching profile' });
@@ -275,13 +281,19 @@ exports.unblockUser = unblockUser;
  * @route   GET /api/users/blocked
  * @access  Private
  */
+/**
+ * @desc    Get bidirectional blocks for the current user
+ * @route   GET /api/users/blocked
+ * @access  Private
+ */
 const getBlockedUsers = async (req, res) => {
     try {
-        const blockerId = req.user?.id;
-        if (!blockerId)
+        const userId = req.user?.id;
+        if (!userId)
             return res.status(401).json({ success: false, message: 'Authentication required' });
+        // Users I have blocked
         const blocked = await db_1.prisma.block.findMany({
-            where: { blockerId },
+            where: { blockerId: userId },
             include: {
                 blocked: {
                     select: {
@@ -293,10 +305,78 @@ const getBlockedUsers = async (req, res) => {
                 }
             }
         });
-        res.status(200).json({ success: true, blockedUsers: blocked.map(b => b.blocked) });
+        // Users who have blocked me
+        const blockedBy = await db_1.prisma.block.findMany({
+            where: { blockedId: userId },
+            select: { blockerId: true }
+        });
+        res.status(200).json({
+            success: true,
+            blockedUsers: blocked.map(b => b.blocked),
+            blockedByIDs: blockedBy.map(b => b.blockerId)
+        });
     }
     catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch blocked users' });
     }
 };
 exports.getBlockedUsers = getBlockedUsers;
+/**
+ * @desc    Get undismissed warnings for the current user
+ * @route   GET /api/users/warnings
+ * @access  Private
+ */
+const getWarnings = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId)
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        const warnings = await db_1.prisma.warning.findMany({
+            where: { userId, isDismissed: false },
+            orderBy: { createdAt: 'asc' }
+        });
+        res.status(200).json({ success: true, warnings });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to fetch warnings' });
+    }
+};
+exports.getWarnings = getWarnings;
+/**
+ * @desc    Dismiss a warning
+ * @route   PUT /api/users/warnings/:id/dismiss
+ * @access  Private
+ */
+const dismissWarning = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId)
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        const warningId = req.params.id;
+        // Validate ID (Issue 7)
+        try {
+            idSchema.parse(warningId);
+        }
+        catch (e) {
+            return res.status(400).json({ success: false, message: e.message || 'Invalid warning ID' });
+        }
+        // Ownership-safe update using updateMany
+        const updateResult = await db_1.prisma.warning.updateMany({
+            where: {
+                id: warningId,
+                userId,
+                isDismissed: false
+            },
+            data: { isDismissed: true }
+        });
+        if (updateResult.count === 0) {
+            return res.status(404).json({ success: false, message: 'Warning not found or already dismissed' });
+        }
+        res.status(200).json({ success: true, message: 'Warning dismissed' });
+    }
+    catch (error) {
+        logger_1.logger.error('Error dismissing warning:', error);
+        res.status(500).json({ success: false, message: 'Failed to dismiss warning' });
+    }
+};
+exports.dismissWarning = dismissWarning;

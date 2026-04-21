@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveReport = exports.getReports = exports.updateUserStatus = exports.getUsers = void 0;
+exports.warnUser = exports.resolveReport = exports.getReports = exports.updateUserStatus = exports.getUsers = void 0;
 const db_1 = require("../utils/db");
 const zod_1 = require("zod");
 const getUsers = async (req, res, next) => {
@@ -166,3 +166,38 @@ const resolveReport = async (req, res, next) => {
     }
 };
 exports.resolveReport = resolveReport;
+/**
+ * @desc    Issue a warning to a user
+ * @route   POST /api/admin/warn/:userId
+ * @access  Private/Admin
+ */
+const warnUser = async (req, res, next) => {
+    try {
+        const userId = req.params.userId;
+        const { message } = req.body;
+        // Validate UUID format (Issue 5 - reuse regex from resolveReport)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
+        if (!message) {
+            return res.status(400).json({ success: false, message: 'Warning message is required' });
+        }
+        // Verify target user exists (Issue 4)
+        const targetUser = await db_1.prisma.user.findUnique({ where: { id: userId } });
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const warning = await db_1.prisma.warning.create({
+            data: {
+                userId,
+                message
+            }
+        });
+        res.status(201).json({ success: true, data: warning, message: 'User warned successfully' });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.warnUser = warnUser;

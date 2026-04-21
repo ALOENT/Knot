@@ -69,26 +69,40 @@ const initChatSocket = (io) => {
                 logger_1.logger.info(`Admin ${userId} joined room ${roomId} in ghost mode`);
             }
         });
-        // Mark as Read Event
+        // Mark as Read Event (receiver opens conversation)
         socket.on(socketEvents_1.SOCKET_EVENTS.MESSAGE_READ, async (data) => {
             if (!data.senderId)
                 return;
             try {
-                await db_1.prisma.message.updateMany({
+                // Collect IDs of messages that will be marked as read
+                const unreadMessages = await db_1.prisma.message.findMany({
                     where: {
                         senderId: data.senderId,
                         receiverId: userId,
                         status: { in: ['SENT', 'DELIVERED'] }
                     },
+                    select: { id: true }
+                });
+                if (unreadMessages.length === 0)
+                    return;
+                const messageIds = unreadMessages.map(m => m.id);
+                await db_1.prisma.message.updateMany({
+                    where: { id: { in: messageIds } },
                     data: { status: 'READ' }
                 });
                 // Notify the original sender that their messages were read
-                const senderSockets = io.sockets.adapter.rooms.get(data.senderId);
-                if (senderSockets) {
-                    io.to(data.senderId).emit(socketEvents_1.SOCKET_EVENTS.MESSAGE_READ, {
-                        readerId: userId
-                    });
-                }
+                // Emit to the sender's personal room
+                io.to(data.senderId).emit(socketEvents_1.SOCKET_EVENTS.MESSAGE_READ, {
+                    messageIds,
+                    partnerId: userId // The person who read the messages
+                });
+                // Also broadcast to other rooms the sender/receiver might be in (e.g. ChatWindow room)
+                // We use .except(data.senderId) to ensure they don't get the same event twice
+                const roomId = getRoomId(userId, data.senderId);
+                socket.to(roomId).except(data.senderId).emit(socketEvents_1.SOCKET_EVENTS.MESSAGE_READ, {
+                    messageIds,
+                    partnerId: userId
+                });
             }
             catch (error) {
                 logger_1.logger.error(`Error marking messages as read:`, error);
@@ -97,12 +111,12 @@ const initChatSocket = (io) => {
         // Send Message Event
         socket.on(socketEvents_1.SOCKET_EVENTS.SEND_MESSAGE, async (data) => {
             try {
-                const { receiverId, content, fileUrl, replyToId } = data;
+                const { receiverId, content, fileUrl, fileName, attachmentBytes, attachmentPages, resourceType, originalName, fileSize, replyToId } = data;
                 if (!receiverId)
                     return;
                 if (!content && !fileUrl)
                     return; // Ignore empty messages
-                // Check if block exists
+                // 1. Check if block exists (Bidirectional enforcement)
                 const block = await db_1.prisma.block.findFirst({
                     where: {
                         OR: [
@@ -112,25 +126,8 @@ const initChatSocket = (io) => {
                     }
                 });
                 if (block) {
-                    // If you blocked them, UI should prevent this, but just in case:
-                    if (block.blockerId === userId) {
-                        socket.emit(socketEvents_1.SOCKET_EVENTS.ERROR, { message: 'You have blocked this user' });
-                        return;
-                    }
-                    // If they blocked you, silently fail:
-                    const fakeMessage = {
-                        id: `fake_${Date.now()}`,
-                        content,
-                        fileUrl,
-                        senderId: userId,
-                        receiverId,
-                        replyToId,
-                        status: 'SENT',
-                        isDeleted: false,
-                        timestamp: new Date().toISOString(),
-                        sender: { id: userId, username: 'you', displayName: 'you', profilePic: null }
-                    };
-                    socket.emit(socketEvents_1.SOCKET_EVENTS.MESSAGE_CONFIRMED, fakeMessage);
+                    // Rule: Silently drop. Do not save, do not emit to anyone, no error back.
+                    logger_1.logger.info(`Message from ${userId} to ${receiverId} silently dropped due to block.`);
                     return;
                 }
                 // Check if receiver is online
@@ -142,6 +139,21 @@ const initChatSocket = (io) => {
                     data: {
                         content,
                         fileUrl,
+                        fileName: fileName && String(fileName).trim() ? String(fileName).trim().slice(0, 255) : null,
+                        attachmentBytes: typeof attachmentBytes === 'number' && Number.isFinite(attachmentBytes) && attachmentBytes >= 0
+                            ? Math.min(Math.floor(attachmentBytes), 2147483647)
+                            : null,
+                        attachmentPages: typeof attachmentPages === 'number' &&
+                            Number.isFinite(attachmentPages) &&
+                            attachmentPages > 0 &&
+                            attachmentPages <= 10000
+                            ? Math.floor(attachmentPages)
+                            : null,
+                        resourceType: resourceType && ['image', 'video', 'raw'].includes(String(resourceType)) ? String(resourceType) : null,
+                        originalName: originalName && String(originalName).trim() ? String(originalName).trim().slice(0, 255) : null,
+                        fileSize: typeof fileSize === 'number' && Number.isFinite(fileSize) && fileSize >= 0
+                            ? Math.min(Math.floor(fileSize), 2147483647)
+                            : null,
                         senderId: userId,
                         receiverId,
                         replyToId,
