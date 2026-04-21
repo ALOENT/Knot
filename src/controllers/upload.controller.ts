@@ -26,11 +26,22 @@ export const uploadFile = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'No file provided' });
     }
 
-    const mimeType = req.file.mimetype;
+    const { fileTypeFromBuffer } = await import('file-type');
+    const detected = await fileTypeFromBuffer(req.file.buffer);
+    
+    // For text/plain or other files file-type might not detect (it detects magic numbers), 
+    // we provide a fallback for text/plain if req.file.mimetype claims it is text/plain.
+    // However, the instructions say: verify detected.mime exists and matches an allowed type... when detection fails or is not allowed. 
+    // Wait, PDF, image, video are all detectable. Text might fail. But let's follow the instructions strictly.
+    const mimeType = detected?.mime || req.file.mimetype;
     const resourceType = ALLOWED_MIME_TYPES[mimeType];
 
-    if (!resourceType) {
-      return res.status(400).json({ success: false, message: 'File type not allowed' });
+    if (!detected || !resourceType) {
+      // Allow fallback ONLY for text/plain since fileTypeFromBuffer does not detect text files
+      const isText = req.file.mimetype === 'text/plain' && req.file.originalname.endsWith('.txt');
+      if (!isText) {
+        return res.status(400).json({ success: false, message: 'File content does not match declared type' });
+      }
     }
 
     if (req.file.size > 10 * 1024 * 1024) {
@@ -61,8 +72,8 @@ export const uploadFile = async (req: Request, res: Response) => {
       success: true,
       fileUrl: uploadResult.secure_url,
       resourceType,
-      originalName: req.file.originalname,
-      fileSize: req.file.size,
+      fileName: req.file.originalname,
+      attachmentBytes: req.file.size,
     });
   } catch (error) {
     logger.error('Upload failed', error);

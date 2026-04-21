@@ -70,8 +70,6 @@ model Message {
   attachmentBytes Int? // File size in bytes (set on upload)
   attachmentPages Int? // PDF page count when known; null for non-PDF
   resourceType   String? // 'image' | 'video' | 'raw' — Cloudinary resource type
-  originalName   String? // Original file name from upload
-  fileSize       Int?    // File size in bytes from upload response
   senderId   String
   receiverId String
   replyToId  String?

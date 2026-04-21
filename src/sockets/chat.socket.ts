@@ -117,9 +117,9 @@ export const initChatSocket = (io: Server) => {
       }
     });
     // Send Message Event
-    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; fileName?: string | null; attachmentBytes?: number | null; attachmentPages?: number | null; resourceType?: string | null; originalName?: string | null; fileSize?: number | null; replyToId?: string }) => {
+    socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (data: { receiverId: string; content?: string; fileUrl?: string; fileName?: string | null; attachmentBytes?: number | null; attachmentPages?: number | null; resourceType?: string | null; replyToId?: string }) => {
       try {
-        const { receiverId, content, fileUrl, fileName, attachmentBytes, attachmentPages, resourceType, originalName, fileSize, replyToId } = data;
+        const { receiverId, content, fileUrl, fileName, attachmentBytes, attachmentPages, resourceType, replyToId } = data;
         if (!receiverId) return;
         if (!content && !fileUrl) return; // Ignore empty messages
         
@@ -162,11 +162,6 @@ export const initChatSocket = (io: Server) => {
                 ? Math.floor(attachmentPages)
                 : null,
             resourceType: resourceType && ['image', 'video', 'raw'].includes(String(resourceType)) ? String(resourceType) : null,
-            originalName: originalName && String(originalName).trim() ? String(originalName).trim().slice(0, 255) : null,
-            fileSize:
-              typeof fileSize === 'number' && Number.isFinite(fileSize) && fileSize >= 0
-                ? Math.min(Math.floor(fileSize), 2147483647)
-                : null,
             senderId: userId,
             receiverId,
             replyToId,

@@ -250,6 +250,9 @@ export default function ChatWindow({
   const handleDownload = async (fileUrl: string, fileName: string) => {
     try {
       const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed with status: ${response.status}`);
+      }
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -261,7 +264,8 @@ export default function ChatWindow({
       URL.revokeObjectURL(blobUrl);
       // Mark as downloaded in local state so button changes to OPEN
       setDownloadedFiles(prev => new Set(prev).add(fileUrl));
-    } catch {
+    } catch (error) {
+      console.error('Download error:', error);
       // Fallback: just open in new tab
       window.open(fileUrl, '_blank');
     }
@@ -652,9 +656,18 @@ export default function ChatWindow({
     const lower = fileUrl.toLowerCase();
     
     // Try to detect type from URL for legacy messages
-    const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => lower.includes(ext)) 
-      || lower.includes('/image/upload/');
-    const isVideo = lower.includes('.mp4') || lower.includes('/video/upload/');
+    let isImage = false;
+    let isVideo = false;
+    try {
+      const url = new URL(fileUrl);
+      const pathname = url.pathname.toLowerCase();
+      isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => pathname.endsWith(ext)) || lower.includes('/image/upload/');
+      isVideo = pathname.endsWith('.mp4') || lower.includes('/video/upload/');
+    } catch {
+      isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => lower.includes(ext)) || lower.includes('/image/upload/');
+      isVideo = lower.includes('.mp4') || lower.includes('/video/upload/');
+    }
+
     
     if (isImage) {
       return (
