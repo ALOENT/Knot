@@ -25,8 +25,6 @@ export interface Message {
   attachmentBytes?: number | null;
   attachmentPages?: number | null;
   resourceType?: 'image' | 'video' | 'raw';
-  originalName?: string | null;
-  fileSize?: number | null;
   senderId: string;
   receiverId: string;
   timestamp: string;
@@ -357,8 +355,6 @@ export default function ChatWindow({
     let uploadedFileName: string | undefined = undefined;
     let uploadedBytes: number | undefined = undefined;
     let uploadedResourceType: string | undefined = undefined;
-    let uploadedOriginalName: string | undefined = undefined;
-    let uploadedFileSize: number | undefined = undefined;
 
     if (selectedFile) {
       // Client-side validation
@@ -378,8 +374,8 @@ export default function ChatWindow({
         const uploaded = await new Promise<{
           fileUrl: string;
           resourceType: string;
-          originalName: string;
-          fileSize: number;
+          fileName: string;
+          attachmentBytes: number;
         }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
@@ -400,8 +396,8 @@ export default function ChatWindow({
                   resolve({
                     fileUrl: response.fileUrl,
                     resourceType: response.resourceType,
-                    originalName: response.originalName,
-                    fileSize: response.fileSize,
+                    fileName: response.fileName,
+                    attachmentBytes: response.attachmentBytes,
                   });
                 } else {
                   reject(new Error(response.message || 'Upload failed'));
@@ -436,11 +432,9 @@ export default function ChatWindow({
         });
         
         fileUrl = uploaded.fileUrl;
-        uploadedFileName = uploaded.originalName;
-        uploadedBytes = uploaded.fileSize;
+        uploadedFileName = uploaded.fileName;
+        uploadedBytes = uploaded.attachmentBytes;
         uploadedResourceType = uploaded.resourceType;
-        uploadedOriginalName = uploaded.originalName;
-        uploadedFileSize = uploaded.fileSize;
       } catch (error: any) {
         if (error.message !== 'Upload cancelled') {
           console.error("Failed to upload file", error);
@@ -462,8 +456,6 @@ export default function ChatWindow({
       uploadedBytes,
       undefined, // attachmentPages — not used in new flow
       uploadedResourceType,
-      uploadedOriginalName,
-      uploadedFileSize,
     );
     setInput('');
     setSelectedFile(null);
