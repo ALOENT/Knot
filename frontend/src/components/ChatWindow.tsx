@@ -514,9 +514,18 @@ export default function ChatWindow({
   const renderFileBubble = (msg: Message, isMine: boolean) => {
     if (!msg.fileUrl) return null;
     const fileUrl = msg.fileUrl;
-    const resourceType = msg.resourceType;
+    let resourceType = msg.resourceType;
     const originalName = msg.fileName || 'File';
     const fileSize = msg.attachmentBytes;
+
+    if (!resourceType) {
+      const lowerUrl = fileUrl.toLowerCase();
+      if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => lowerUrl.includes(ext))) {
+        resourceType = 'image';
+      } else {
+        resourceType = 'raw';
+      }
+    }
 
     // Image bubble
     if (resourceType === 'image') {
@@ -526,7 +535,7 @@ export default function ChatWindow({
             src={fileUrl}
             alt={originalName}
             loading="lazy"
-            onClick={() => window.open(fileUrl, '_blank')}
+            onClick={() => window.open(fileUrl, '_blank', 'noopener,noreferrer')}
             style={{
               width: '100%',
               maxWidth: '280px',
@@ -559,9 +568,6 @@ export default function ChatWindow({
     }
 
     // Raw file bubble (PDFs, documents) — fixed card
-    const isDownloaded = downloadedFiles.has(fileUrl);
-    const showDownload = !isMine && !isDownloaded;
-
     return (
       <div
         className="mt-2 flex items-center gap-3"
@@ -601,107 +607,25 @@ export default function ChatWindow({
 
         {/* Action button */}
         <div className="shrink-0">
-          {showDownload ? (
-            <button
-              type="button"
-              onClick={() => handleDownload(fileUrl, originalName)}
-              style={{
-                background: '#2563eb',
-                color: '#fff',
-                padding: '4px 12px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              DOWNLOAD
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => window.open(fileUrl, '_blank')}
-              style={{
-                background: '#2563eb',
-                color: '#fff',
-                padding: '4px 12px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              OPEN
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => window.open(fileUrl, '_blank', 'noopener,noreferrer')}
+            style={{
+              background: '#2563eb',
+              color: '#fff',
+              padding: '4px 12px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 700,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            OPEN
+          </button>
         </div>
       </div>
     );
-  };
-
-  /* ── Legacy file detection for old messages without resourceType ── */
-  const renderLegacyFileBubble = (msg: Message, isMine: boolean) => {
-    if (!msg.fileUrl) return null;
-    const fileUrl = msg.fileUrl;
-    const lower = fileUrl.toLowerCase();
-    
-    // Try to detect type from URL for legacy messages
-    let isImage = false;
-    let isVideo = false;
-    try {
-      const url = new URL(fileUrl);
-      const pathname = url.pathname.toLowerCase();
-      isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => pathname.endsWith(ext)) || lower.includes('/image/upload/');
-      isVideo = pathname.endsWith('.mp4') || lower.includes('/video/upload/');
-    } catch {
-      isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => lower.includes(ext)) || lower.includes('/image/upload/');
-      isVideo = lower.includes('.mp4') || lower.includes('/video/upload/');
-    }
-
-    
-    if (isImage) {
-      return (
-        <div className="mt-2">
-          <img
-            src={fileUrl}
-            alt={msg.fileName || 'Image'}
-            loading="lazy"
-            onClick={() => window.open(fileUrl, '_blank')}
-            style={{
-              width: '100%',
-              maxWidth: '280px',
-              maxHeight: '200px',
-              objectFit: 'cover',
-              borderRadius: '12px',
-              cursor: 'pointer',
-            }}
-            className="bg-black/30"
-          />
-        </div>
-      );
-    }
-    
-    if (isVideo) {
-      return (
-        <div className="mt-2">
-          <video
-            controls
-            src={fileUrl}
-            style={{
-              width: '100%',
-              maxWidth: '280px',
-              borderRadius: '12px',
-            }}
-          />
-        </div>
-      );
-    }
-
-    // Treat as raw/document
-    const tempMsg = { ...msg, resourceType: 'raw' as const };
-    return renderFileBubble(tempMsg, isMine);
   };
 
   // ── Empty state ──
@@ -969,11 +893,7 @@ export default function ChatWindow({
                   )}
 
                   {/* File attachments */}
-                  {!msg.isDeleted && msg.fileUrl && (
-                    msg.resourceType
-                      ? renderFileBubble(msg, isMine)
-                      : renderLegacyFileBubble(msg, isMine)
-                  )}
+                  {!msg.isDeleted && msg.fileUrl && renderFileBubble(msg, isMine)}
 
                   <span
                     className={`flex items-center gap-1 text-[10px] mt-1.5 font-medium tracking-tight ${
