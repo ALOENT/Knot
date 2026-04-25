@@ -343,7 +343,7 @@ npx prisma studio            # Open visual DB browser
 
 ## 👤 Author
 
-**Kanishk**
+**Kanishk Garg**
 [GitHub](https://github.com/ALOENT)
 
 ---
